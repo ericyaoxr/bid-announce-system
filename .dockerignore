@@ -1,0 +1,36 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov
+
+# 项目
+.workbuddy
+data/*.db
+data/*.db-journal
+*.egg-info
+dist
+build
+
+# Docs
+*.md
+!README.md
+docs/
+tests/
+
+# Docker
+Dockerfile
+.dockerignore
+.github/
