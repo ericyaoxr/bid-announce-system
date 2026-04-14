@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>中标结果公示系统</title>
+    <style>
+        :root {
+            --primary: #1677ff; --primary-light: #e6f4ff; --success: #52c41a;
+            --warning: #faad14; --danger: #ff4d4f; --text: #141414;
+            --text-sec: #8c8c8c; --border: #e8e8e8; --bg: #f0f2f5;
+            --card: #fff; --radius: 6px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+
+        /* Layout */
+        .layout { display: flex; min-height: 100vh; }
+        .sidebar { width: 200px; background: #001529; position: fixed; top: 0; left: 0; bottom: 0; z-index: 100; display: flex; flex-direction: column; }
+        .sidebar-logo { height: 52px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #fff; font-size: 15px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .nav-menu { list-style: none; padding: 4px 0; flex: 1; }
+        .nav-item { padding: 11px 20px; cursor: pointer; color: rgba(255,255,255,0.55); display: flex; align-items: center; gap: 8px; font-size: 13px; transition: all 0.15s; }
+        .nav-item:hover { color: #fff; background: rgba(255,255,255,0.06); }
+        .nav-item.active { color: #fff; background: var(--primary); border-radius: 0; }
+        .main { flex: 1; margin-left: 200px; }
+        .header { height: 52px; background: var(--card); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+        .content { padding: 20px; }
+
+        /* Pages */
+        .page { display: none; animation: fadeIn 0.25s ease; }
+        .page.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Cards */
+        .card { background: var(--card); border-radius: var(--radius); box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+        .stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 20px; }
+        .stat-card { padding: 18px; }
+        .stat-card .label { font-size: 13px; color: var(--text-sec); margin-bottom: 6px; }
+        .stat-card .value { font-size: 26px; font-weight: 700; }
+        .stat-card .sub { font-size: 12px; color: var(--text-sec); margin-top: 4px; }
+        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .chart-card { padding: 18px; }
+        .chart-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 14px; }
+
+        /* Bar chart */
+        .bar-row { display: flex; align-items: center; margin-bottom: 8px; }
+        .bar-label { width: 70px; text-align: right; padding-right: 10px; font-size: 12px; color: var(--text-sec); flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .bar-track { flex: 1; height: 20px; background: #f5f5f5; border-radius: 3px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 3px; display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; font-size: 11px; color: #fff; font-weight: 600; min-width: 24px; transition: width 0.5s ease; }
+        .bf-blue { background: var(--primary); } .bf-green { background: var(--success); } .bf-orange { background: var(--warning); } .bf-red { background: var(--danger); } .bf-purple { background: #722ed1; } .bf-cyan { background: #13c2c2; }
+
+        /* Trend */
+        .trend-wrap { display: flex; align-items: flex-end; gap: 3px; height: 160px; }
+        .trend-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; }
+        .trend-bar { width: 100%; border-radius: 2px 2px 0 0; background: var(--primary); min-height: 2px; transition: height 0.4s; }
+        .trend-lbl { font-size: 9px; color: var(--text-sec); margin-top: 3px; }
+
+        /* Amount top */
+        .amt-list { list-style: none; }
+        .amt-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f5f5f5; font-size: 13px; }
+        .amt-item:last-child { border-bottom: none; }
+        .amt-name { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 12px; }
+        .amt-val { font-weight: 600; color: var(--danger); white-space: nowrap; }
+
+        /* Top company rank list */
+        .rank-item { display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid #f5f5f5; font-size: 13px; }
+        .rank-item:last-child { border-bottom: none; }
+        .rank-no { width: 24px; height: 24px; border-radius: 50%; background: #f0f0f0; color: var(--text-sec); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; margin-right: 10px; }
+        .rank-no.rank-top { background: var(--primary); color: #fff; }
+        .rank-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 10px; font-weight: 500; }
+        .rank-val { white-space: nowrap; font-size: 12px; }
+        .rank-val .stat-val { font-weight: 700; }
+        .rank-val .stat-val.red { color: var(--danger); }
+        .rank-val .stat-val.green { color: var(--success); }
+
+        /* Table */
+        .toolbar { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+        .search-input, .filter-select { padding: 7px 11px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; outline: none; }
+        .search-input:focus, .filter-select:focus { border-color: var(--primary); }
+        .search-input { width: 240px; }
+        .btn { padding: 7px 14px; border: none; border-radius: var(--radius); font-size: 13px; cursor: pointer; font-weight: 500; }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: #4096ff; }
+        .btn-default { background: #fff; color: var(--text); border: 1px solid var(--border); }
+        .btn-default:hover { border-color: var(--primary); color: var(--primary); }
+        .table-wrap { border-radius: var(--radius); overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; }
+        thead th { background: #fafafa; padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-sec); border-bottom: 1px solid var(--border); white-space: nowrap; }
+        tbody td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #f5f5f5; }
+        tbody tr:hover { background: var(--primary-light); }
+        .ellipsis { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+        .tag-blue { background: #e6f4ff; color: #1677ff; } .tag-green { background: #f6ffed; color: #52c41a; }
+        .tag-orange { background: #fff7e6; color: #fa8c16; } .tag-purple { background: #f9f0ff; color: #722ed1; }
+        .tag-cyan { background: #e6fffb; color: #13c2c2; } .tag-red { background: #fff1f0; color: #ff4d4f; }
+        .tag-default { background: #f5f5f5; color: #8c8c8c; }
+        .link { color: var(--primary); cursor: pointer; }
+        .link:hover { text-decoration: underline; }
+        .amount { color: var(--danger); font-weight: 600; }
+        .winner-text { color: var(--success); font-weight: 500; font-size: 12px; }
+
+        /* Pagination */
+        .pagination { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; }
+        .pagination-info { font-size: 12px; color: var(--text-sec); display: flex; align-items: center; gap: 8px; }
+        .pagination-btns { display: flex; gap: 3px; }
+        .pg-btn { padding: 4px 10px; border: 1px solid var(--border); border-radius: 3px; background: #fff; cursor: pointer; font-size: 12px; }
+        .pg-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .pg-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .pg-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+        .page-size-select { padding: 3px 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 12px; outline: none; }
+
+        /* Crawler */
+        .status-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; margin-bottom: 20px; }
+        .status-card { padding: 24px; text-align: center; }
+        .status-card .icon { font-size: 32px; margin-bottom: 10px; }
+        .status-card .title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+        .status-card .desc { font-size: 12px; color: var(--text-sec); margin-bottom: 14px; line-height: 1.6; }
+        .btn-lg { padding: 9px 22px; font-size: 14px; }
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-danger:hover { background: #ff7875; }
+        .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-success { background: var(--success); color: #fff; }
+        .btn-success:hover { background: #73d13d; }
+        .export-group { display: flex; gap: 6px; margin-left: auto; }
+        .progress-bar { width: 100%; height: 8px; background: #f0f0f0; border-radius: 4px; margin: 10px 0; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width 0.3s; }
+        .progress-fill.done { background: var(--success); }
+        .progress-fill.error { background: var(--danger); }
+        .log-box { max-height: 400px; overflow-y: auto; font-family: Consolas,monospace; font-size: 12px; padding: 10px; background: #1a1a2e; color: #a9b7c6; border-radius: 4px; }
+        .log-box .log-info { color: #a9b7c6; }
+        .log-box .log-warn { color: #ffc66d; }
+        .log-box .log-error { color: #ff6b68; }
+        .log-box .log-success { color: #6a8759; }
+        .log-line { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .running-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; animation: pulse 1.5s ease infinite; }
+        .running-badge.on { background: #f6ffed; color: var(--success); }
+        .running-badge.off { background: #f5f5f5; color: var(--text-sec); }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+        /* Modal */
+        .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; justify-content: center; align-items: flex-start; padding-top: 60px; }
+        .modal-bg.show { display: flex; }
+        .modal { background: var(--card); border-radius: var(--radius); width: 700px; max-width: 94vw; max-height: 80vh; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+        .modal-head { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: var(--card); z-index: 1; }
+        .modal-head h3 { font-size: 15px; font-weight: 600; }
+        .modal-x { cursor: pointer; font-size: 18px; color: var(--text-sec); background: none; border: none; }
+        .modal-body { padding: 20px; }
+        .d-row { display: flex; margin-bottom: 10px; font-size: 13px; }
+        .d-label { width: 90px; color: var(--text-sec); flex-shrink: 0; }
+        .d-val { flex: 1; word-break: break-all; }
+        .section-title { font-size: 14px; font-weight: 600; margin: 16px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+        .winner-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        .winner-table th { background: #fafafa; padding: 8px 10px; font-size: 12px; color: var(--text-sec); text-align: left; border-bottom: 1px solid var(--border); }
+        .winner-table td { padding: 8px 10px; font-size: 13px; border-bottom: 1px solid #f5f5f5; }
+        .winner-table tr.winning { background: #f6ffed; }
+
+        /* Empty / Loading */
+        .empty { text-align: center; padding: 48px; color: var(--text-sec); font-size: 13px; }
+        .loading { text-align: center; padding: 32px; }
+        .spinner { display: inline-block; width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <div class="sidebar">
+        <div class="sidebar-logo">&#128202; 中标结果公示系统</div>
+        <ul class="nav-menu">
+            <li class="nav-item active" data-page="dashboard"><span>&#128200;</span> 数据概览</li>
+            <li class="nav-item" data-page="announcements"><span>&#128196;</span> 中标结果</li>
+            <li class="nav-item" data-page="crawler"><span>&#9881;</span> 采集管理</li>
+        </ul>
+    </div>
+    <div class="main">
+        <div class="header">
+            <div class="header-title" id="pageTitle">数据概览</div>
+            <div class="header-info" id="headerInfo">--</div>
+        </div>
+        <div class="content">
+            <!-- Dashboard -->
+            <div class="page active" id="page-dashboard">
+                <div class="stat-grid" id="statCards"></div>
+                <div class="chart-grid">
+                    <div class="card chart-card"><h3>&#127942; 中标数最多的公司</h3><div id="topCountCompany"></div></div>
+                    <div class="card chart-card"><h3>&#128176; 中标总金额最高的公司</h3><div id="topAmountCompany"></div></div>
+                </div>
+                <div class="chart-grid">
+                    <div class="card chart-card"><h3>&#128202; 分类分布</h3><div id="catChart"></div></div>
+                    <div class="card chart-card"><h3>&#128202; 招标方式分布</h3><div id="typeChart"></div></div>
+                </div>
+                <div class="chart-grid">
+                    <div class="card chart-card" style="grid-column:1/-1"><h3>&#128200; 每日中标趋势</h3><div id="trendChart" class="trend-wrap"></div></div>
+                </div>
+            </div>
+            <!-- Announcements -->
+            <div class="page" id="page-announcements">
+                <div class="toolbar">
+                    <input type="text" class="search-input" id="kwInput" placeholder="搜索公告标题/项目编号/招标人/中标人..." />
+                    <select class="filter-select" id="catFilter"><option value="">全部分类</option></select>
+                    <select class="filter-select" id="modeFilter"><option value="">全部方式</option></select>
+                    <button class="btn btn-primary" onclick="loadList()">&#128269; 搜索</button>
+                    <button class="btn btn-default" onclick="resetFilter()">&#128260; 重置</button>
+                    <div class="export-group">
+                        <button class="btn btn-success" onclick="exportData('excel')" title="导出Excel">&#128196; 导出Excel</button>
+                        <button class="btn btn-default" onclick="exportData('csv')" title="导出CSV">&#128196; 导出CSV</button>
+                    </div>
+                </div>
+                <div class="card table-wrap">
+                    <table>
+                        <thead><tr>
+                            <th style="width:50px">ID</th><th>公告标题</th>
+                            <th style="width:60px">分类</th><th style="width:200px">招标人</th>
+                            <th style="width:80px">联系人</th><th style="width:110px">联系电话</th>
+                            <th style="width:160px">中标人</th>
+                            <th style="width:120px">中标金额</th><th style="width:140px">发布时间</th><th style="width:50px">操作</th>
+                        </tr></thead>
+                        <tbody id="listBody"></tbody>
+                    </table>
+                    <div class="pagination" id="pager"></div>
+                </div>
+            </div>
+            <!-- Crawler -->
+            <div class="page" id="page-crawler">
+                <!-- 运行状态 -->
+                <div class="card" style="padding:16px;margin-bottom:16px">
+                    <div style="display:flex;align-items:center;justify-content:space-between">
+                        <div style="display:flex;align-items:center;gap:12px">
+                            <span id="runBadge" class="running-badge off">空闲</span>
+                            <span id="runInfo" style="font-size:13px;color:var(--text-sec)">--</span>
+                        </div>
+                        <div style="display:flex;gap:8px">
+                            <button class="btn btn-default" onclick="refreshCrawlerStatus()">&#128260; 刷新状态</button>
+                            <button class="btn btn-danger btn-lg" id="btnStop" onclick="stopCrawler()" disabled>&#9632; 停止采集</button>
+                        </div>
+                    </div>
+                    <div class="progress-bar" id="progressBar" style="display:none"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+                    <div id="progressInfo" style="font-size:12px;color:var(--text-sec);margin-top:4px"></div>
+                </div>
+
+                <div class="status-grid" style="grid-template-columns:repeat(3,1fr)">
+                    <div class="card status-card"><div class="icon">&#128640;</div><div class="title">增量采集</div><div class="desc">抓取<strong>结果公示</strong>新增数据<br/>遇到已有数据自动停止，仅保留有中标记录</div>
+                        <div style="margin-bottom:8px"><label style="font-size:12px;color:var(--text-sec)">最大页数: <input type="number" id="incPages" value="10" min="1" max="500" style="width:60px;padding:3px 6px;border:1px solid var(--border);border-radius:3px;text-align:center" /></label></div>
+                        <button class="btn btn-primary btn-lg" onclick="startCrawler('incremental')">&#9654; 启动增量采集</button>
+                    </div>
+                    <div class="card status-card"><div class="icon">&#128197;</div><div class="title">按时间采集</div><div class="desc">抓取最近N天的<strong>结果公示</strong><br/>含中标人、金额等深度信息，仅保留有中标记录</div>
+                        <div style="margin-bottom:8px"><label style="font-size:12px;color:var(--text-sec)">最近天数: <input type="number" id="byDateDays" value="30" min="1" max="365" style="width:60px;padding:3px 6px;border:1px solid var(--border);border-radius:3px;text-align:center" /> 天</label></div>
+                        <button class="btn btn-primary btn-lg" onclick="startCrawler('by_date')">&#9654; 按时间采集</button>
+                    </div>
+                    <div class="card status-card"><div class="icon">&#127775;</div><div class="title">全量采集</div><div class="desc">抓取<strong>结果公示</strong>全部数据<br/>从第1页开始逐页抓取，仅保留有中标记录，耗时较长</div>
+                        <div style="margin-bottom:8px"><label style="font-size:12px;color:var(--text-sec)">最大页数: <input type="number" id="fullPages" value="500" min="1" max="5000" style="width:60px;padding:3px 6px;border:1px solid var(--border);border-radius:3px;text-align:center" /></label></div>
+                        <button class="btn btn-primary btn-lg" onclick="startCrawler('full')">&#9654; 启动全量采集</button>
+                    </div>
+                </div>
+
+                <div class="card" style="padding:16px;margin-bottom:16px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                        <h3 style="font-size:14px;font-weight:600">&#128221; 采集日志</h3>
+                        <span id="logCount" style="font-size:12px;color:var(--text-sec)">0 条</span>
+                    </div>
+                    <div class="log-box" id="crawlerLog"><div class="log-line log-info">等待操作...</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-bg" id="modal">
+    <div class="modal">
+        <div class="modal-head"><h3 id="modalTitle">公告详情</h3><button class="modal-x" onclick="closeModal()">&times;</button></div>
+        <div class="modal-body" id="modalBody"></div>
+    </div>
+</div>
+
+<script>
+const API = '';
+let curPage = 1, pageSize = 20, totalPgs = 1;
+
+// ====== Navigation ======
+document.querySelectorAll('.nav-item').forEach(el => {
+    el.addEventListener('click', () => {
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        el.classList.add('active');
+        const pg = el.dataset.page;
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById('page-' + pg).classList.add('active');
+        const t = { dashboard: '数据概览', announcements: '中标结果', crawler: '采集管理' };
+        document.getElementById('pageTitle').textContent = t[pg] || '';
+        if (pg === 'dashboard') loadDash();
+        if (pg === 'announcements') loadList();
+        if (pg === 'crawler') refreshCrawlerStatus();
+    });
+});
+
+// ====== API ======
+async function api(path) {
+    const r = await fetch(API + path);
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+}
+
+// ====== Dashboard ======
+async function loadDash() {
+    try {
+        const d = await api('/api/dashboard');
+        document.getElementById('headerInfo').textContent = '中标结果 ' + d.winning_count + ' 条 | 总金额 ¥' + formatAmt(d.total_bid_amount);
+
+        document.getElementById('statCards').innerHTML = [
+            { l: '中标结果', v: d.winning_count, c: 'var(--danger)', s: '总记录 ' + d.total + ' 条' },
+            { l: '中标总金额', v: '¥' + formatAmt(d.total_bid_amount), c: 'var(--primary)', s: '' },
+            { l: '今日新增', v: d.today, c: 'var(--success)' },
+            { l: '本周新增', v: d.this_week, c: 'var(--warning)' },
+        ].map(s => '<div class="card stat-card"><div class="label">' + s.l + '</div><div class="value" style="color:' + s.c + '">' + s.v + '</div>' + (s.s ? '<div class="sub">' + s.s + '</div>' : '') + '</div>').join('');
+
+        // 中标数最多公司排名
+        const tcEl = document.getElementById('topCountCompany');
+        if (d.top_count_companies && d.top_count_companies.length) {
+            tcEl.innerHTML = d.top_count_companies.map(tc =>
+                '<div class="rank-item"><span class="rank-no' + (tc.rank <= 3 ? ' rank-top' : '') + '">' + tc.rank + '</span>' +
+                '<span class="rank-name" title="' + esc(tc.name) + '">' + esc(tc.name) + '</span>' +
+                '<span class="rank-val"><span class="stat-val green">' + tc.count + '</span>次 &nbsp; <span class="stat-val red">¥' + formatAmt(tc.total_amount) + '</span></span></div>'
+            ).join('');
+        } else {
+            tcEl.innerHTML = '<div class="empty">暂无数据</div>';
+        }
+
+        // 中标总金额最高公司排名
+        const taEl = document.getElementById('topAmountCompany');
+        if (d.top_amount_companies && d.top_amount_companies.length) {
+            taEl.innerHTML = d.top_amount_companies.map(ta =>
+                '<div class="rank-item"><span class="rank-no' + (ta.rank <= 3 ? ' rank-top' : '') + '">' + ta.rank + '</span>' +
+                '<span class="rank-name" title="' + esc(ta.name) + '">' + esc(ta.name) + '</span>' +
+                '<span class="rank-val"><span class="stat-val red">¥' + formatAmt(ta.total_amount) + '</span> &nbsp; <span class="stat-val green">' + ta.count + '</span>次</span></div>'
+            ).join('');
+        } else {
+            taEl.innerHTML = '<div class="empty">暂无数据</div>';
+        }
+
+        renderBars('catChart', d.by_category, ['bf-blue','bf-green','bf-orange']);
+        renderBars('typeChart', d.by_tender_mode, ['bf-cyan','bf-blue','bf-purple','bf-orange','bf-green']);
+        renderTrend('trendChart', d.daily_trend);
+    } catch (e) {
+        console.error(e);
+        document.getElementById('statCards').innerHTML = '<div class="card stat-card" style="grid-column:1/-1"><div class="loading"><div class="spinner"></div><p style="margin-top:8px">加载失败，请检查服务</p></div></div>';
+    }
+}
+
+function renderBars(id, items, cls) {
+    const el = document.getElementById(id);
+    if (!items || !items.length) { el.innerHTML = '<div class="empty">暂无数据</div>'; return; }
+    const mx = Math.max(...items.map(i => i.value));
+    el.innerHTML = items.map((it, i) =>
+        '<div class="bar-row"><span class="bar-label">' + it.name + '</span><div class="bar-track"><div class="bar-fill ' + cls[i % cls.length] + '" style="width:' + (it.value / mx * 100) + '%">' + it.value + '</div></div></div>'
+    ).join('');
+}
+
+function renderTrend(id, items) {
+    const el = document.getElementById(id);
+    if (!items || !items.length) { el.innerHTML = '<div class="empty">暂无趋势</div>'; return; }
+    const sorted = [...items].reverse(), mx = Math.max(...sorted.map(i => i.count), 1);
+    el.innerHTML = sorted.map(it => {
+        const h = Math.max(2, it.count / mx * 150);
+        return '<div class="trend-col"><div class="trend-bar" style="height:' + h + 'px" title="' + it.date + ': ' + it.count + '条"></div><span class="trend-lbl">' + it.date.substring(5) + '</span></div>';
+    }).join('');
+}
+
+// ====== Announcements ======
+async function loadList() {
+    const kw = document.getElementById('kwInput').value;
+    const cat = document.getElementById('catFilter').value;
+    const mode = document.getElementById('modeFilter').value;
+
+    let url = '/api/announcements?page=' + curPage + '&size=' + pageSize;
+    url += '&announcement_type=4';  // 固定：结果公示
+    url += '&has_winner=true';      // 固定：只看有中标
+    if (kw) url += '&keyword=' + encodeURIComponent(kw);
+    if (cat) url += '&category=' + encodeURIComponent(cat);
+    if (mode) url += '&tender_mode=' + encodeURIComponent(mode);
+
+    try {
+        const d = await api(url);
+        totalPgs = Math.ceil(d.total / pageSize);
+
+        // Load filters once
+        if (!document.getElementById('catFilter').dataset.loaded) { await loadFilters(); document.getElementById('catFilter').dataset.loaded = '1'; }
+
+        const tbody = document.getElementById('listBody');
+        if (!d.items.length) {
+            tbody.innerHTML = '<tr><td colspan="10" class="empty">暂无中标结果数据</td></tr>';
+        } else {
+            tbody.innerHTML = d.items.map(it => {
+                const catTag = getCatTag(it.category);
+                const tenderer = esc(it.tenderer_name || '-');
+                const contact = esc(it.tenderer_contact || '-');
+                const phone = it.tenderer_phone ? '<a href="tel:' + esc(it.tenderer_phone) + '" style="color:var(--primary);text-decoration:none">' + esc(it.tenderer_phone) + '</a>' : '-';
+                // 使用展开后的current_bidder（只有中标的）
+                const bidder = it.current_bidder;
+                const winnerName = bidder ? esc(bidder.supplier_name || '-') : '-';
+                const winnerAmt = bidder && bidder.bid_amount ? '¥' + formatAmt(bidder.bid_amount) : '-';
+                // 多中标人时显示序号
+                const bidderNo = it.bidder_total > 1 ? '<span style="color:var(--primary);font-size:11px;margin-right:4px">[' + (it.bidder_index + 1) + '/' + it.bidder_total + ']</span>' : '';
+                return '<tr>' +
+                    '<td>' + it.id + '</td>' +
+                    '<td class="ellipsis" title="' + esc(it.title) + '">' + esc(it.title) + '</td>' +
+                    '<td>' + catTag + '</td>' +
+                    '<td style="font-size:12px;color:var(--text-sec);max-width:200px;word-break:break-all;line-height:1.4" title="' + tenderer + '">' + tenderer + '</td>' +
+                    '<td style="font-size:12px;color:var(--text-sec)">' + contact + '</td>' +
+                    '<td style="font-size:12px">' + phone + '</td>' +
+                    '<td class="winner-text">' + bidderNo + winnerName + '</td>' +
+                    '<td class="amount">' + winnerAmt + '</td>' +
+                    '<td>' + fmtDate(it.publish_date) + '</td>' +
+                    '<td><a class="link" onclick="showDetail(\'' + it.id + '\')">详情</a></td>' +
+                    '</tr>';
+            }).join('');
+        }
+        renderPager(d.total, d.page);
+    } catch (e) {
+        console.error(e);
+        document.getElementById('listBody').innerHTML = '<tr><td colspan="10" class="empty">加载失败</td></tr>';
+    }
+}
+
+async function loadFilters() {
+    try {
+        const [cats, modes] = await Promise.all([api('/api/categories'), api('/api/tender-modes')]);
+        const cs = document.getElementById('catFilter');
+        cats.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; cs.appendChild(o); });
+        const ms = document.getElementById('modeFilter');
+        modes.forEach(m => { const o = document.createElement('option'); o.value = m; o.textContent = m; ms.appendChild(o); });
+    } catch (e) { console.error(e); }
+}
+
+function getCatTag(cat) {
+    const m = { '工程': 'tag-blue', '货物': 'tag-green', '服务': 'tag-orange' };
+    return '<span class="tag ' + (m[cat] || 'tag-default') + '">' + esc(cat || '-') + '</span>';
+}
+
+function renderPager(total, page) {
+    const s = (page - 1) * pageSize + 1, e = Math.min(page * pageSize, total);
+    let h = '<div class="pagination-info">共 ' + total + ' 条，' + s + '-' + e + ' <label style="margin-left:8px">每页 <select class="page-size-select" onchange="changePageSize(this.value)">';
+    [10, 20, 50, 100].forEach(n => {
+        h += '<option value="' + n + '"' + (n === pageSize ? ' selected' : '') + '>' + n + '</option>';
+    });
+    h += '</select> 条</label></div><div class="pagination-btns">';
+    h += '<button class="pg-btn" onclick="goP(1)"' + (page <= 1 ? ' disabled' : '') + '>&laquo;</button>';
+    h += '<button class="pg-btn" onclick="goP(' + (page-1) + ')"' + (page <= 1 ? ' disabled' : '') + '>&lsaquo;</button>';
+    let sp = Math.max(1, page - 2), ep = Math.min(totalPgs, page + 2);
+    for (let i = sp; i <= ep; i++) h += '<button class="pg-btn' + (i===page?' active':'') + '" onclick="goP(' + i + ')">' + i + '</button>';
+    h += '<button class="pg-btn" onclick="goP(' + (page+1) + ')"' + (page >= totalPgs ? ' disabled' : '') + '>&rsaquo;</button>';
+    h += '<button class="pg-btn" onclick="goP(' + totalPgs + ')"' + (page >= totalPgs ? ' disabled' : '') + '>&raquo;</button></div>';
+    document.getElementById('pager').innerHTML = h;
+}
+
+function changePageSize(val) {
+    pageSize = parseInt(val) || 20;
+    curPage = 1;
+    loadList();
+}
+
+function goP(p) { curPage = p; loadList(); }
+function resetFilter() {
+    document.getElementById('kwInput').value = '';
+    document.getElementById('catFilter').value = '';
+    document.getElementById('modeFilter').value = '';
+    curPage = 1; loadList();
+}
+
+// ====== Export ======
+function exportData(fmt) {
+    const kw = document.getElementById('kwInput').value;
+    const cat = document.getElementById('catFilter').value;
+    const mode = document.getElementById('modeFilter').value;
+
+    let url = '/api/export/' + fmt + '?';
+    if (kw) url += '&keyword=' + encodeURIComponent(kw);
+    if (cat) url += '&category=' + encodeURIComponent(cat);
+    if (mode) url += '&tender_mode=' + encodeURIComponent(mode);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+
+// ====== Detail Modal ======
+async function showDetail(id) {
+    document.getElementById('modal').classList.add('show');
+    document.getElementById('modalTitle').textContent = '加载中...';
+    document.getElementById('modalBody').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+    try {
+        const d = await api('/api/announcements/' + id);
+        document.getElementById('modalTitle').textContent = d.title || '公告详情';
+        let html = '<div class="section-title">基本信息</div>';
+        const rows = [
+            ['公告ID', d.id], ['项目编号', d.project_no || '-'], ['公告类型', d.announcement_type_desc || '-'],
+            ['分类', d.category || '-'], ['招标方式', d.tender_mode_desc || '-'],
+            ['发布时间', fmtDate(d.publish_date)],
+            ['招标人', d.tenderer_name || '-'], ['联系人', d.tenderer_contact || '-'], ['联系电话', d.tenderer_phone ? '<a href="tel:' + esc(d.tenderer_phone) + '" style="color:var(--primary);text-decoration:none">' + esc(d.tenderer_phone) + '</a>' : '-'],
+            ['项目地址', d.project_address || '-'],
+            ['资金来源', d.fund_source || '-'], ['控制价', d.purchase_control_price ? '¥' + formatAmt(d.purchase_control_price) : '-'],
+            ['中标金额', d.bid_price ? '¥' + formatAmt(d.bid_price) : '-'],
+            ['详情链接', d.source_url ? '<a href="' + d.source_url + '" target="_blank" class="link">查看原文</a>' : '-'],
+        ];
+        html += rows.map(r => '<div class="d-row"><span class="d-label">' + r[0] + '</span><span class="d-val">' + r[1] + '</span></div>').join('');
+
+        // 中标人
+        if (d.winning_bidders && d.winning_bidders.length) {
+            html += '<div class="section-title">中标人/候选人</div>';
+            html += '<table class="winner-table"><thead><tr><th>排名</th><th>供应商</th><th>金额</th><th>状态</th><th>信用代码</th></tr></thead><tbody>';
+            d.winning_bidders.forEach(w => {
+                const isW = w.is_winning === 1;
+                html += '<tr class="' + (isW ? 'winning' : '') + '"><td>' + (w.rank || '-') + '</td><td>' + esc(w.supplier_name || '-') + '</td><td class="amount">' + (w.bid_amount ? '¥' + formatAmt(w.bid_amount) : '-') + '</td><td>' + (isW ? '<span class="tag tag-green">中标</span>' : '<span class="tag tag-default">候选人</span>') + '</td><td style="font-size:11px;color:var(--text-sec)">' + esc(w.social_credit_code || '-') + '</td></tr>';
+            });
+            html += '</tbody></table>';
+        }
+
+        // 变更记录
+        if (d.change_records && d.change_records.length) {
+            html += '<div class="section-title">变更记录</div>';
+            d.change_records.forEach(c => {
+                html += '<div class="d-row"><span class="d-label">变更内容</span><span class="d-val">' + esc(typeof c === 'string' ? c : JSON.stringify(c)) + '</span></div>';
+            });
+        }
+
+        document.getElementById('modalBody').innerHTML = html;
+    } catch (e) {
+        document.getElementById('modalBody').innerHTML = '<p style="color:var(--danger)">加载失败: ' + e.message + '</p>';
+    }
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('show'); }
+document.getElementById('modal').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+
+// ====== Crawler ======
+let crawlerPollTimer = null;
+let lastLogCount = 0;
+
+async function startCrawler(mode) {
+    const log = document.getElementById('crawlerLog');
+    let maxPages, days = null;
+
+    if (mode === 'incremental') {
+        maxPages = parseInt(document.getElementById('incPages').value) || 10;
+    } else if (mode === 'by_date') {
+        days = parseInt(document.getElementById('byDateDays').value) || 30;
+        maxPages = 500;
+    } else {
+        maxPages = parseInt(document.getElementById('fullPages').value) || 500;
+    }
+
+    const modeLabels = { incremental: '增量', full: '全量', by_date: '按时间', detail_only: '补采详情' };
+    log.innerHTML = '<div class="log-line log-info">[' + new Date().toLocaleTimeString() + '] 正在启动' + modeLabels[mode] + '采集...</div>';
+
+    try {
+        const body = { mode, max_pages: maxPages };
+        if (days !== null) body.days = days;
+
+        const r = await fetch('/api/crawler/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const d = await r.json();
+
+        if (d.status === 'already_running') {
+            addLogLine('warn', '采集数据已在运行中: ' + d.message);
+        } else {
+            addLogLine('success', d.message);
+            startPolling();
+        }
+    } catch (e) {
+        addLogLine('error', '启动失败: ' + e.message);
+    }
+}
+
+async function stopCrawler() {
+    try {
+        const r = await fetch('/api/crawler/stop', { method: 'POST' });
+        const d = await r.json();
+        addLogLine('warn', d.message);
+    } catch (e) {
+        addLogLine('error', '停止失败: ' + e.message);
+    }
+}
+
+function startPolling() {
+    if (crawlerPollTimer) clearInterval(crawlerPollTimer);
+    lastLogCount = 0;
+    crawlerPollTimer = setInterval(pollCrawlerStatus, 2000);
+    pollCrawlerStatus();
+}
+
+function stopPolling() {
+    if (crawlerPollTimer) {
+        clearInterval(crawlerPollTimer);
+        crawlerPollTimer = null;
+    }
+}
+
+async function pollCrawlerStatus() {
+    try {
+        const d = await api('/api/crawler/status');
+        updateCrawlerUI(d);
+        if (!d.is_running) stopPolling();
+    } catch (e) {
+        console.error('poll error', e);
+    }
+}
+
+function updateCrawlerUI(d) {
+    const badge = document.getElementById('runBadge');
+    const info = document.getElementById('runInfo');
+    const btnStop = document.getElementById('btnStop');
+    const pBar = document.getElementById('progressBar');
+    const pFill = document.getElementById('progressFill');
+    const pInfo = document.getElementById('progressInfo');
+
+    if (d.is_running) {
+        badge.className = 'running-badge on';
+        badge.textContent = '运行中';
+        const modeLabel = { incremental: '增量', full: '全量', by_date: '按时间', detail_only: '补采详情' }[d.mode] || d.mode;
+        info.textContent = `${modeLabel}采集 | 耗时 ${d.elapsed} | ${d.progress.phase || ''}`;
+        btnStop.disabled = false;
+        pBar.style.display = 'block';
+        if (d.progress.detail) pInfo.textContent = d.progress.detail;
+        if (d.progress.phase === 'list') { pFill.style.width = '30%'; pFill.className = 'progress-fill'; }
+        else if (d.progress.phase === 'detail') { pFill.style.width = '60%'; pFill.className = 'progress-fill'; }
+        else if (d.progress.phase === 'done') { pFill.style.width = '100%'; pFill.className = 'progress-fill done'; }
+    } else {
+        badge.className = 'running-badge off';
+        badge.textContent = '空闲';
+        if (d.result && d.result.status === 'success') {
+            info.textContent = `上次完成 | 总记录 ${d.result.total_records || '-'} | 有中标 ${d.result.with_winner || '-'}`;
+        } else if (d.result && d.result.status === 'error') {
+            info.textContent = `上次异常 | ${d.result.error || ''}`;
+        } else {
+            info.textContent = '未运行';
+        }
+        btnStop.disabled = true;
+        pBar.style.display = d.result && d.result.status ? 'block' : 'none';
+        if (d.result && d.result.status === 'success') { pFill.style.width = '100%'; pFill.className = 'progress-fill done'; }
+        else if (d.result && d.result.status === 'error') { pFill.style.width = '100%'; pFill.className = 'progress-fill error'; }
+        if (d.result && d.result.elapsed) pInfo.textContent = `耗时 ${d.result.elapsed}s`;
+    }
+
+    // 日志
+    const logEl = document.getElementById('crawlerLog');
+    const logCountEl = document.getElementById('logCount');
+    if (d.recent_logs && d.recent_logs.length > 0) {
+        logCountEl.textContent = d.log_count + ' 条';
+        const newLogs = d.recent_logs.slice(0, d.recent_logs.length - lastLogCount);
+        if (newLogs.length > 0) {
+            logEl.innerHTML = d.recent_logs.map(l => {
+                const cls = l.level === 'error' ? 'log-error' : l.level === 'warning' || l.level === 'warn' ? 'log-warn' : l.level === 'success' ? 'log-success' : 'log-info';
+                return '<div class="log-line ' + cls + '">[' + l.time + '] ' + esc(l.msg) + '</div>';
+            }).join('');
+        }
+        lastLogCount = d.recent_logs.length;
+    }
+}
+
+function addLogLine(level, msg) {
+    const log = document.getElementById('crawlerLog');
+    const cls = level === 'error' ? 'log-error' : level === 'warn' || level === 'warning' ? 'log-warn' : level === 'success' ? 'log-success' : 'log-info';
+    log.innerHTML = '<div class="log-line ' + cls + '">[' + new Date().toLocaleTimeString() + '] ' + esc(msg) + '</div>' + log.innerHTML;
+}
+
+async function refreshCrawlerStatus() {
+    try {
+        const d = await api('/api/crawler/status');
+        updateCrawlerUI(d);
+        if (d.is_running && !crawlerPollTimer) startPolling();
+    } catch (e) {
+        addLogLine('error', '获取状态失败: ' + e.message);
+    }
+}
+
+// ====== Utils ======
+function fmtDate(d) { return d ? d.replace('T', ' ').substring(0, 16) : '-'; }
+function esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
+function formatAmt(n) { if (!n) return '0'; if (n >= 100000000) return (n/100000000).toFixed(2) + '亿'; if (n >= 10000) return (n/10000).toFixed(2) + '万'; return n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+// ====== Init ======
+loadDash();
+</script>
+</body>
+</html>
