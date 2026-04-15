@@ -438,12 +438,6 @@ async def get_dashboard_stats() -> DashboardStats:
                 if amt:
                     company_stats[supplier]["total_amount"] += float(amt)
 
-        # 如果没有中标人但bid_price有值
-        if not wbs and not wbs_all:
-            bp = r["bid_price"]
-            if bp:
-                total_bid += bp
-
     conn.close()
 
     by_category = [StatItem(name=k, value=v) for k, v in sorted(category_map.items(), key=lambda x: -x[1])]
@@ -834,7 +828,7 @@ async def export_csv(
         "公告ID", "项目编号", "公告标题", "分类", "招标方式", "招标人",
         "联系人", "联系电话",
         "发布时间", "项目地址", "资金来源",
-        "控制价", "中标金额", "中标人", "中标人金额", "中标人信用代码", "详情链接",
+        "控制价", "中标金额", "中标人", "中标人信用代码", "详情链接",
     ]
     writer = csv.writer(output)
     writer.writerow(headers)
@@ -845,8 +839,8 @@ async def export_csv(
             d["tenderer_contact"], d["tenderer_phone"],
             d["publish_date"],
             d["project_address"], d["fund_source"],
-            d["purchase_control_price"], d["bid_price"],
-            d["winner_supplier"], d["winner_amount"],
+            d["purchase_control_price"], d["winner_amount"],
+            d["winner_supplier"],
             d["winner_credit_code"], d["source_url"],
         ])
 
@@ -896,7 +890,7 @@ async def export_excel(
         ("招标方式", 12), ("招标人", 20), ("联系人", 10), ("联系电话", 14),
         ("发布时间", 18),
         ("项目地址", 25), ("资金来源", 15), ("控制价", 14), ("中标金额", 14),
-        ("中标人", 22), ("中标人金额", 14), ("中标人信用代码", 22), ("详情链接", 30),
+        ("中标人", 22), ("中标人信用代码", 22), ("详情链接", 30),
     ]
 
     # 写表头
@@ -916,16 +910,16 @@ async def export_excel(
             d["tenderer_contact"], d["tenderer_phone"],
             d["publish_date"],
             d["project_address"], d["fund_source"],
-            d["purchase_control_price"], d["bid_price"],
-            d["winner_supplier"], d["winner_amount"],
+            d["purchase_control_price"], d["winner_amount"],
+            d["winner_supplier"],
             d["winner_credit_code"], d["source_url"],
         ]
         for col_idx, val in enumerate(values, 1):
             cell = ws.cell(row=row_idx, column=col_idx, value=val if val != "" else None)
             cell.alignment = cell_align
             cell.border = thin_border
-            # 金额列高亮 (12=控制价, 13=中标金额, 15=中标人金额)
-            if col_idx in (12, 13, 15) and val:
+            # 金额列高亮 (12=控制价, 13=中标金额)
+            if col_idx in (12, 13) and val:
                 cell.font = amount_font
                 cell.number_format = "#,##0.00"
             # 中标人列高亮 (14=中标人)
