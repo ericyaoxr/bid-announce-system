@@ -122,6 +122,10 @@
         .btn-success { background: var(--success); color: #fff; }
         .btn-success:hover { background: #73d13d; }
         .export-group { display: flex; gap: 6px; margin-left: auto; }
+        .date-range { display: flex; align-items: center; gap: 4px; }
+        .date-sep { color: var(--text-sec); font-size: 13px; }
+        input[type="date"] { cursor: pointer; }
+        input[type="date"]:invalid { color: var(--text-sec); }
         .progress-bar { width: 100%; height: 8px; background: #f0f0f0; border-radius: 4px; margin: 10px 0; overflow: hidden; }
         .progress-fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width 0.3s; }
         .progress-fill.done { background: var(--success); }
@@ -198,6 +202,11 @@
                     <input type="text" class="search-input" id="kwInput" placeholder="搜索公告标题/项目编号/招标人/中标人..." />
                     <select class="filter-select" id="catFilter"><option value="">全部分类</option></select>
                     <select class="filter-select" id="modeFilter"><option value="">全部方式</option></select>
+                    <div class="date-range">
+                        <input type="date" class="filter-select" id="startDate" title="开始日期" />
+                        <span class="date-sep">~</span>
+                        <input type="date" class="filter-select" id="endDate" title="结束日期" />
+                    </div>
                     <button class="btn btn-primary" onclick="loadList()">&#128269; 搜索</button>
                     <button class="btn btn-default" onclick="resetFilter()">&#128260; 重置</button>
                     <div class="export-group">
@@ -369,6 +378,14 @@ async function loadList() {
     const kw = document.getElementById('kwInput').value;
     const cat = document.getElementById('catFilter').value;
     const mode = document.getElementById('modeFilter').value;
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+
+    // 日期有效性验证
+    if (startDate && endDate && startDate > endDate) {
+        document.getElementById('listBody').innerHTML = '<tr><td colspan="10" class="empty" style="color:var(--danger)">开始日期不能晚于结束日期</td></tr>';
+        return;
+    }
 
     let url = '/api/announcements?page=' + curPage + '&size=' + pageSize;
     url += '&announcement_type=4';  // 固定：结果公示
@@ -376,6 +393,8 @@ async function loadList() {
     if (kw) url += '&keyword=' + encodeURIComponent(kw);
     if (cat) url += '&category=' + encodeURIComponent(cat);
     if (mode) url += '&tender_mode=' + encodeURIComponent(mode);
+    if (startDate) url += '&start_date=' + encodeURIComponent(startDate);
+    if (endDate) url += '&end_date=' + encodeURIComponent(endDate);
 
     try {
         const d = await api(url);
@@ -462,6 +481,8 @@ function resetFilter() {
     document.getElementById('kwInput').value = '';
     document.getElementById('catFilter').value = '';
     document.getElementById('modeFilter').value = '';
+    document.getElementById('startDate').value = '';
+    document.getElementById('endDate').value = '';
     curPage = 1; loadList();
 }
 
@@ -470,11 +491,21 @@ function exportData(fmt) {
     const kw = document.getElementById('kwInput').value;
     const cat = document.getElementById('catFilter').value;
     const mode = document.getElementById('modeFilter').value;
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+
+    // 日期有效性验证
+    if (startDate && endDate && startDate > endDate) {
+        alert('开始日期不能晚于结束日期');
+        return;
+    }
 
     let url = '/api/export/' + fmt + '?';
     if (kw) url += '&keyword=' + encodeURIComponent(kw);
     if (cat) url += '&category=' + encodeURIComponent(cat);
     if (mode) url += '&tender_mode=' + encodeURIComponent(mode);
+    if (startDate) url += '&start_date=' + encodeURIComponent(startDate);
+    if (endDate) url += '&end_date=' + encodeURIComponent(endDate);
 
     const a = document.createElement('a');
     a.href = url;
@@ -500,7 +531,7 @@ async function showDetail(id) {
             ['招标人', d.tenderer_name || '-'], ['联系人', d.tenderer_contact || '-'], ['联系电话', d.tenderer_phone ? '<a href="tel:' + esc(d.tenderer_phone) + '" style="color:var(--primary);text-decoration:none">' + esc(d.tenderer_phone) + '</a>' : '-'],
             ['项目地址', d.project_address || '-'],
             ['资金来源', d.fund_source || '-'], ['控制价', d.purchase_control_price ? '¥' + formatAmt(d.purchase_control_price) : '-'],
-            ['中标金额', d.bid_price ? '¥' + formatAmt(d.bid_price) : '-'],
+            ['中标金额', d.winning_bidders && d.winning_bidders.filter(w => w.is_winning === 1).length ? '¥' + formatAmt(d.winning_bidders.filter(w => w.is_winning === 1).reduce((s, w) => s + (w.bid_amount || 0), 0)) : '-'],
             ['详情链接', d.source_url ? '<a href="' + d.source_url + '" target="_blank" class="link">查看原文</a>' : '-'],
         ];
         html += rows.map(r => '<div class="d-row"><span class="d-label">' + r[0] + '</span><span class="d-val">' + r[1] + '</span></div>').join('');
