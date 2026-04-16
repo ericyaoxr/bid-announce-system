@@ -1,0 +1,101 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          load: ${{ github.event_name == 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: ${{ github.event_name != 'pull_request' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+
+      - name: Verify image (PR)
+        if: github.event_name == 'pull_request'
+        run: |
+          IMAGE=test-image
+          echo "==> Running container for smoke test..."
+          docker run -d --name $IMAGE -p 8000:8000 test-image
+          sleep 5
+          echo "==> Checking health endpoint..."
+          for i in $(seq 1 10); do
+            if curl -sf http://localhost:8000/api/dashboard > /dev/null 2>&1; then
+              echo "✅ Health check passed!"
+              break
+            fi
+            echo "  Attempt $i/10 failed, retrying in 3s..."
+            sleep 3
+          done
+          echo "==> Container logs:"
+          docker logs $IMAGE
+          docker stop $IMAGE && docker rm $IMAGE
+
+      - name: Verify pushed image
+        if: github.event_name != 'pull_request'
+        run: |
+          IMAGE_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -1)
+          echo "==> Pulling image: $IMAGE_TAG"
+          docker pull $IMAGE_TAG
+          echo "==> Running container for smoke test..."
+          docker run -d --name verify -p 8000:8000 $IMAGE_TAG
+          sleep 5
+          echo "==> Checking health endpoint..."
+          for i in $(seq 1 10); do
+            if curl -sf http://localhost:8000/api/dashboard > /dev/null 2>&1; then
+              echo "✅ Health check passed!"
+              break
+            fi
+            echo "  Attempt $i/10 failed, retrying in 3s..."
+            sleep 3
+          done
+          echo "==> Container logs:"
+          docker logs verify
+          docker stop verify && docker rm verify
+          echo "✅ Image verified and ready: $IMAGE_TAG"
