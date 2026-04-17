@@ -47,6 +47,7 @@ project/
 ├── tests/               # 测试目录
 ├── docs/                # 文档
 ├── Dockerfile           # Docker构建
+├── docker-compose.yml   # Docker Compose 部署
 └── pyproject.toml       # 项目配置
 ```
 
@@ -87,6 +88,42 @@ docker run -d \
 # API:  http://localhost:8000/docs
 ```
 
+### Docker Compose 部署（推荐）
+
+```bash
+# 一键启动
+docker compose up -d
+
+# 查看日志
+docker compose logs -f
+
+# 停止
+docker compose down
+
+# 更新镜像并重启
+docker compose pull && docker compose up -d
+```
+
+自定义端口（默认 8000）：
+
+```bash
+PORT=9000 docker compose up -d
+```
+
+### Docker 手动部署
+
+```bash
+# 构建镜像
+docker build -t bid-announce-system .
+
+# 运行容器
+docker run -d \
+  --name bid-announce \
+  -p 8000:8000 \
+  -v $(pwd)/data:/app/data \
+  bid-announce-system
+```
+
 ### ghcr.io 部署
 
 ```bash
@@ -94,10 +131,10 @@ docker run -d \
 docker login ghcr.io -u YOUR_USERNAME
 
 # 拉取
-docker pull ghcr.io/YOUR_USERNAME/bid-announce-system:latest
+docker pull ghcr.io/ericyaoxr/bid-announce-system:latest
 
 # 运行
-docker run -d -p 8000:8000 -v ./data:/app/data ghcr.io/YOUR_USERNAME/bid-announce-system:latest
+docker run -d -p 8000:8000 -v ./data:/app/data ghcr.io/ericyaoxr/bid-announce-system:latest
 ```
 
 ## API 文档
