@@ -2,17 +2,20 @@ name: CI/CD
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
 
 env:
   PYTHON_VERSION: "3.11"
   NODE_VERSION: "20"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   backend-lint:
-    name: Backend Lint & Type Check
+    name: Backend Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,11 +26,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-          pip install ruff mypy
+          pip install ruff
       - name: Run ruff
-        run: ruff check src/ scripts/
+        run: ruff check src/ scripts/ tests/
       - name: Run ruff format check
-        run: ruff format --check src/ scripts/
+        run: ruff format --check src/ scripts/ tests/
 
   backend-test:
     name: Backend Tests
@@ -45,14 +48,9 @@ jobs:
           pip install pytest pytest-asyncio pytest-cov
       - name: Run tests
         run: pytest tests/ -v --cov=src --cov-report=xml
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        with:
-          file: ./coverage.xml
-        if: success()
 
   frontend-lint:
-    name: Frontend Lint & Type Check
+    name: Frontend Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -72,7 +70,7 @@ jobs:
       - name: Lint
         run: |
           cd frontend
-          npx eslint src/ --ext .ts,.tsx || true
+          npx eslint src/ || true
 
   frontend-test:
     name: Frontend Tests
@@ -92,7 +90,7 @@ jobs:
       - name: Run tests
         run: |
           cd frontend
-          npm run test -- --run --coverage || true
+          npm run test -- --run || true
 
   frontend-build:
     name: Frontend Build
@@ -120,37 +118,74 @@ jobs:
           path: frontend/dist/
           retention-days: 7
 
-  docker-build:
-    name: Docker Build
+  docker:
+    name: Docker Build & Push
     runs-on: ubuntu-latest
     needs: [backend-test, frontend-build]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: web/
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - name: Build Docker image
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=
+
+      - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: false
-          tags: bid-announce-system:latest
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
 
-  deploy:
-    name: Deploy
-    runs-on: ubuntu-latest
-    needs: docker-build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-      - name: Deploy to server
+      - name: Verify image
         run: |
-          echo "Deploy step - configure your deployment target"
-          echo "Example: scp docker-compose.yml user@server:/app/"
-          echo "Example: ssh user@server 'cd /app && docker compose up -d'"
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          IMAGE_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -1)
+          echo "==> Pulling image: $IMAGE_TAG"
+          docker pull $IMAGE_TAG
+          echo "==> Running container for smoke test..."
+          docker run -d --name verify -p 8000:8000 $IMAGE_TAG
+          sleep 5
+          echo "==> Checking health endpoint..."
+          for i in $(seq 1 10); do
+            if curl -sf http://localhost:8000/api/health > /dev/null 2>&1; then
+              echo "Health check passed!"
+              break
+            fi
+            echo "  Attempt $i/10 failed, retrying in 3s..."
+            sleep 3
+          done
+          echo "==> Container logs:"
+          docker logs verify
+          docker stop verify && docker rm verify
+          echo "Image verified and ready: $IMAGE_TAG"

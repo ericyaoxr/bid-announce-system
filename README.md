@@ -30,84 +30,106 @@
 
 ```
 project/
+├── frontend/            # React + TypeScript + Vite 前端
+│   ├── src/
+│   │   ├── components/  # 通用组件
+│   │   ├── pages/       # 页面组件
+│   │   ├── lib/         # 工具库
+│   │   └── assets/      # 静态资源
+│   └── package.json
 ├── src/
-│   ├── api/             # FastAPI 后端 (app_v2.py)
+│   ├── api/             # FastAPI 后端
+│   │   ├── app.py       # 主应用入口
+│   │   ├── deps.py      # 依赖注入
+│   │   └── routes/      # API 路由
 │   ├── config/          # 配置模块
 │   ├── core/            # 核心模块
-│   ├── crawlers/        # 采集数据实现 (deep_crawler.py)
+│   ├── crawlers/        # 采集数据实现
+│   ├── db/              # 数据库模型
 │   ├── models/          # 数据模型
 │   ├── pipelines/       # 数据处理管道
 │   └── utils/           # 工具函数
-├── web/
-│   └── index.html       # 纯HTML前端（零CDN依赖）
 ├── scripts/
 │   ├── start_server.py  # Web服务启动
 │   ├── run_deep_crawler.py  # 采集数据启动
 │   └── init_db.py       # 数据库初始化
 ├── tests/               # 测试目录
-├── docs/                # 文档
-├── Dockerfile           # Docker构建
+├── .env.example         # 环境变量示例
 ├── docker-compose.yml   # Docker Compose 部署
+├── Dockerfile           # Docker构建
 └── pyproject.toml       # 项目配置
 ```
 
 ## 环境要求
 
 - Python 3.11+
+- Node.js 20+（仅开发）
+- Docker & Docker Compose（推荐部署方式）
 
 ## 快速开始
-
-### 本地运行
-
-```bash
-# 安装依赖
-pip install -e .
-
-# 启动Web服务
-python scripts/start_server.py --host 0.0.0.0 --port 8000
-
-# 启动采集数据（命令行）
-python scripts/run_deep_crawler.py --mode incremental --pages 10
-```
-
-### Docker 运行
-
-```bash
-# 构建镜像
-docker build -t bid-announce-system .
-
-# 运行容器
-docker run -d \
-  --name bid-announce \
-  -p 8000:8000 \
-  -v $(pwd)/data:/app/data \
-  bid-announce-system
-
-# 访问
-# 前端: http://localhost:8000/web/
-# API:  http://localhost:8000/docs
-```
 
 ### Docker Compose 部署（推荐）
 
 ```bash
-# 一键启动
-docker compose up -d
+# 1. 克隆项目
+git clone https://github.com/ericyaoxr/bid-announce-system.git
+cd bid-announce-system
 
-# 查看日志
+# 2. 配置环境变量（可选）
+cp .env.example .env
+# 编辑 .env 文件，修改必要配置
+
+# 3. 一键启动
+docker compose up -d --build
+
+# 4. 查看日志
 docker compose logs -f
 
-# 停止
+# 5. 访问系统
+# 前端: http://localhost:8000/
+# API文档: http://localhost:8000/docs
+```
+
+#### 常用命令
+
+```bash
+# 停止服务
 docker compose down
+
+# 重启服务
+docker compose restart
 
 # 更新镜像并重启
 docker compose pull && docker compose up -d
+
+# 查看容器状态
+docker compose ps
+
+# 进入容器
+docker compose exec app sh
+
+# 自定义端口
+PORT=9000 docker compose up -d
 ```
 
-自定义端口（默认 8000）：
+### 本地开发
 
 ```bash
-PORT=9000 docker compose up -d
+# 1. 安装后端依赖
+pip install -e .
+
+# 2. 安装前端依赖
+cd frontend && npm install && cd ..
+
+# 3. 启动前端开发服务器（热更新）
+cd frontend && npm run dev
+
+# 4. 启动后端服务（新终端）
+python scripts/start_server.py --host 0.0.0.0 --port 8000
+
+# 5. 访问系统
+# 前端: http://localhost:5173/
+# API:  http://localhost:8000/docs
 ```
 
 ### Docker 手动部署
@@ -121,7 +143,12 @@ docker run -d \
   --name bid-announce \
   -p 8000:8000 \
   -v $(pwd)/data:/app/data \
+  --env-file .env \
   bid-announce-system
+
+# 访问
+# 前端: http://localhost:8000/
+# API:  http://localhost:8000/docs
 ```
 
 ### ghcr.io 部署
@@ -134,8 +161,33 @@ docker login ghcr.io -u YOUR_USERNAME
 docker pull ghcr.io/ericyaoxr/bid-announce-system:latest
 
 # 运行
-docker run -d -p 8000:8000 -v ./data:/app/data ghcr.io/ericyaoxr/bid-announce-system:latest
+docker run -d -p 8000:8000 -v ./data:/app/data --env-file .env ghcr.io/ericyaoxr/bid-announce-system:latest
 ```
+
+## 环境变量配置
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `HOST` | 服务监听地址 | `0.0.0.0` |
+| `PORT` | 服务端口 | `8000` |
+| `DEBUG` | 调试模式 | `false` |
+| `SECRET_KEY` | JWT 密钥（生产环境必须修改） | `change-me-to-a-random-secret-key-in-production` |
+| `ALLOWED_ORIGINS` | 允许的跨域来源 | `http://localhost:8000,http://localhost:5173` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Token 过期时间（分钟） | `1440` |
+| `DB_PATH` | 数据库路径 | `data/announcements_deep.db` |
+| `CRAWLER_RATE_LIMIT_RPM` | 采集频率限制（次/分钟） | `120` |
+| `CRAWLER_DEFAULT_PAGES` | 默认采集页数 | `10` |
+| `SCHEDULER_ENABLED` | 启用定时调度 | `true` |
+| `SCHEDULER_INCREMENTAL_CRON` | 增量采集 Cron | `0 2 * * *` |
+| `SCHEDULER_FULL_CRON` | 全量采集 Cron | `0 3 * * 0` |
+| `NOTIFICATION_ENABLED` | 启用通知推送 | `false` |
+| `NOTIFICATION_WEBHOOK_URL` | Webhook 地址 | 空 |
+| `AI_PROVIDER` | AI 提供商（deepseek/ollama） | 空 |
+| `AI_API_KEY` | AI API 密钥 | 空 |
+| `AI_BASE_URL` | AI API 地址 | 空 |
+| `AI_MODEL` | AI 模型名称 | 空 |
+| `LOG_LEVEL` | 日志级别 | `INFO` |
+| `LOG_FORMAT` | 日志格式（json/text） | `json` |
 
 ## API 文档
 
