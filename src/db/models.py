@@ -154,6 +154,7 @@ class ScheduledTask(Base):
 
     id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
     mode = Column(String, nullable=False)
     cron = Column(String, nullable=False)
     max_pages = Column(Integer, default=10)
@@ -165,6 +166,18 @@ class ScheduledTask(Base):
         default=lambda: datetime.now(UTC).isoformat(),
         onupdate=lambda: datetime.now(UTC).isoformat(),
     )
+
+
+class ScheduleEditHistory(Base):
+    __tablename__ = "schedule_edit_history"
+
+    id = Column(String, primary_key=True)
+    schedule_id = Column(String, nullable=False, index=True)
+    editor = Column(String, nullable=False)
+    action = Column(String, nullable=False)
+    old_values = Column(Text, nullable=True)
+    new_values = Column(Text, nullable=True)
+    created_at = Column(String, default=lambda: datetime.now(UTC).isoformat())
 
 
 class NotificationConfig(Base):

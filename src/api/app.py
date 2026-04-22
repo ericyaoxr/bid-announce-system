@@ -32,6 +32,7 @@ async def lifespan(app: FastAPI):
 
     await init_db()
     logger.info("database_initialized")
+    await _run_migrations()
 
     _ensure_default_admin()
 
@@ -70,6 +71,55 @@ async def _load_scheduled_tasks(scheduler) -> None:
 
         logger.info("loaded_scheduled_tasks", count=len(tasks))
         break
+
+
+async def _run_migrations() -> None:
+    """运行数据库迁移 - 添加新列和新表"""
+    import sqlite3
+
+    from src.config.settings import get_settings
+
+    db_path = get_settings().db_path
+    if not Path(db_path).exists():
+        return
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cursor = conn.execute("PRAGMA table_info(scheduled_tasks)")
+        columns = {row[1] for row in cursor.fetchall()}
+
+        if "description" not in columns:
+            conn.execute("ALTER TABLE scheduled_tasks ADD COLUMN description TEXT")
+            logger.info("migration_added_column", table="scheduled_tasks", column="description")
+
+        cursor = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='schedule_edit_history'"
+        )
+        if cursor.fetchone() is None:
+            conn.execute(
+                """
+                CREATE TABLE schedule_edit_history (
+                    id TEXT PRIMARY KEY,
+                    schedule_id TEXT NOT NULL,
+                    editor TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    old_values TEXT,
+                    new_values TEXT,
+                    created_at TEXT
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX idx_schedule_edit_history_schedule_id ON schedule_edit_history(schedule_id)"
+            )
+            logger.info("migration_created_table", table="schedule_edit_history")
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def _ensure_default_admin() -> None:

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Play, Pause, Trash2, Plus, Clock, History, List } from 'lucide-react';
+import { Play, Pause, Trash2, Plus, Clock, History, List, Edit2, Save, X, FileText } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { cn } from '../lib/utils';
@@ -8,9 +8,15 @@ import { cn } from '../lib/utils';
 interface ScheduleJob {
   id: string;
   name: string;
+  description: string | null;
+  mode: string;
   cron: string;
+  max_pages: number;
+  days: number | null;
   next_run: string | null;
   enabled: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 interface ScheduleHistoryRecord {
@@ -27,6 +33,16 @@ interface ScheduleHistoryRecord {
   started_at: string | null;
   finished_at: string | null;
   error_message: string | null;
+  created_at: string;
+}
+
+interface EditHistoryRecord {
+  id: string;
+  schedule_id: string;
+  editor: string;
+  action: string;
+  old_values: string | null;
+  new_values: string | null;
   created_at: string;
 }
 
@@ -57,6 +73,12 @@ export function Schedules() {
   const [cron, setCron] = useState('0 8 * * *');
   const [maxPages, setMaxPages] = useState(10);
   const [days, setDays] = useState(30);
+  const [description, setDescription] = useState('');
+
+  const [editingJob, setEditingJob] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<ScheduleJob>>({});
+
+  const [viewingHistory, setViewingHistory] = useState<string | null>(null);
 
   const { data: jobs } = useQuery({
     queryKey: ['schedules'],
@@ -69,11 +91,24 @@ export function Schedules() {
     refetchInterval: tab === 'history' ? 5000 : false,
   });
 
+  const { data: editHistory } = useQuery({
+    queryKey: ['schedule-edit-history', viewingHistory],
+    queryFn: () => api.get<EditHistoryRecord[]>(`/schedules/${viewingHistory}/edit-history`),
+    enabled: !!viewingHistory,
+  });
+
   const handleCreate = async () => {
     try {
-      await api.post('/schedules', { mode, cron, max_pages: maxPages, days: mode === 'by_date' ? days : undefined });
+      await api.post('/schedules', {
+        mode,
+        cron,
+        max_pages: maxPages,
+        days: mode === 'by_date' ? days : undefined,
+        description: description || undefined,
+      });
       queryClient.invalidateQueries({ queryKey: ['schedules'] });
       setShowForm(false);
+      setDescription('');
     } catch (e: any) {
       alert(e.message);
     }
@@ -97,6 +132,45 @@ export function Schedules() {
       alert(e.message);
     }
   };
+
+  const startEdit = (job: ScheduleJob) => {
+    setEditingJob(job.id);
+    setEditForm({
+      name: job.name,
+      cron: job.cron,
+      max_pages: job.max_pages,
+      days: job.days,
+      enabled: job.enabled,
+      description: job.description,
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingJob(null);
+    setEditForm({});
+  };
+
+  const handleUpdate = async (jobId: string) => {
+    try {
+      const payload: Record<string, any> = {};
+      if (editForm.name !== undefined) payload.name = editForm.name;
+      if (editForm.cron !== undefined) payload.cron = editForm.cron;
+      if (editForm.max_pages !== undefined) payload.max_pages = editForm.max_pages;
+      if (editForm.days !== undefined) payload.days = editForm.days;
+      if (editForm.enabled !== undefined) payload.enabled = editForm.enabled;
+      if (editForm.description !== undefined) payload.description = editForm.description;
+
+      await api.put(`/schedules/${jobId}`, payload);
+      queryClient.invalidateQueries({ queryKey: ['schedules'] });
+      setEditingJob(null);
+      setEditForm({});
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
+
+  const modeLabel = (m: string) =>
+    ({ incremental: '增量', full: '全量', by_date: '按时间', detail_only: '仅详情' }[m] || m);
 
   return (
     <div className="space-y-6">
@@ -180,6 +254,17 @@ export function Schedules() {
                   </div>
                 )}
               </div>
+              <div className="mb-4">
+                <label className="text-xs block mb-1.5 font-medium" style={{ color: 'var(--text-sec)' }}>任务描述</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-2 rounded-lg border text-sm outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                  style={{ backgroundColor: 'var(--bg)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                  placeholder="可选：输入任务描述..."
+                />
+              </div>
               <div className="flex gap-2 justify-end">
                 <button onClick={() => setShowForm(false)}
                   className="px-4 py-2 rounded text-sm border transition-colors"
@@ -199,6 +284,7 @@ export function Schedules() {
               <thead>
                 <tr className="border-b" style={{ borderColor: 'var(--border)' }}>
                   <th className="text-left px-4 py-3 font-medium" style={{ color: 'var(--text-sec)' }}>任务名称</th>
+                  <th className="text-left px-4 py-3 font-medium" style={{ color: 'var(--text-sec)' }}>模式</th>
                   <th className="text-left px-4 py-3 font-medium" style={{ color: 'var(--text-sec)' }}>Cron</th>
                   <th className="text-left px-4 py-3 font-medium" style={{ color: 'var(--text-sec)' }}>下次执行</th>
                   <th className="text-left px-4 py-3 font-medium" style={{ color: 'var(--text-sec)' }}>状态</th>
@@ -208,41 +294,130 @@ export function Schedules() {
               <tbody>
                 {(!jobs || jobs.length === 0) ? (
                   <tr>
-                    <td colSpan={5} className="text-center py-8" style={{ color: 'var(--text-sec)' }}>
+                    <td colSpan={6} className="text-center py-8" style={{ color: 'var(--text-sec)' }}>
                       暂无定时任务，{isAdmin && '点击"新建任务"添加'}
                     </td>
                   </tr>
                 ) : (
                   jobs.map((job) => (
                     <tr key={job.id} className="border-b last:border-0" style={{ borderColor: 'var(--border)' }}>
-                      <td className="px-4 py-3" style={{ color: 'var(--text)' }}>{job.name}</td>
-                      <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-sec)' }}>{job.cron}</td>
+                      <td className="px-4 py-3">
+                        {editingJob === job.id ? (
+                          <div className="space-y-2">
+                            <input
+                              value={editForm.name || ''}
+                              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                              className="w-full px-2 py-1 rounded border text-sm font-mono"
+                              style={{ backgroundColor: 'var(--bg)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                            />
+                            <textarea
+                              value={editForm.description || ''}
+                              onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                              rows={2}
+                              className="w-full px-2 py-1 rounded border text-xs resize-none"
+                              style={{ backgroundColor: 'var(--bg)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                              placeholder="任务描述"
+                            />
+                          </div>
+                        ) : (
+                          <div>
+                            <div style={{ color: 'var(--text)' }}>{job.name}</div>
+                            {job.description && (
+                              <div className="text-xs mt-0.5 flex items-center gap-1" style={{ color: 'var(--text-sec)' }}>
+                                <FileText className="w-3 h-3" /> {job.description}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3" style={{ color: 'var(--text-sec)' }}>
+                        {modeLabel(job.mode)}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-sec)' }}>
+                        {editingJob === job.id ? (
+                          <div className="space-y-2">
+                            <input
+                              value={editForm.cron || ''}
+                              onChange={(e) => setEditForm({ ...editForm, cron: e.target.value })}
+                              className="w-full px-2 py-1 rounded border text-sm font-mono"
+                              style={{ backgroundColor: 'var(--bg)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                            />
+                            <div className="flex flex-wrap gap-1">
+                              {CRON_PRESETS.map((preset) => (
+                                <button
+                                  key={preset.value}
+                                  onClick={() => setEditForm({ ...editForm, cron: preset.value })}
+                                  className={cn(
+                                    'px-2 py-0.5 rounded text-[10px] border transition-colors',
+                                    editForm.cron === preset.value
+                                      ? 'bg-blue-600 text-white border-blue-600'
+                                      : 'border-gray-200 dark:border-gray-700 hover:border-blue-400'
+                                  )}
+                                >
+                                  {preset.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          job.cron
+                        )}
+                      </td>
                       <td className="px-4 py-3" style={{ color: 'var(--text-sec)' }}>{job.next_run || '-'}</td>
                       <td className="px-4 py-3">
-                        <span className={cn(
-                          'inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium',
-                          job.enabled ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
-                        )}>
-                          <span className={cn('w-1.5 h-1.5 rounded-full', job.enabled ? 'bg-green-500' : 'bg-gray-400')} />
-                          {job.enabled ? '启用' : '暂停'}
-                        </span>
+                        {editingJob === job.id ? (
+                          <select
+                            value={editForm.enabled ? 'true' : 'false'}
+                            onChange={(e) => setEditForm({ ...editForm, enabled: e.target.value === 'true' })}
+                            className="px-2 py-1 rounded border text-sm"
+                            style={{ backgroundColor: 'var(--bg)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                          >
+                            <option value="true">启用</option>
+                            <option value="false">暂停</option>
+                          </select>
+                        ) : (
+                          <span className={cn(
+                            'inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium',
+                            job.enabled ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                          )}>
+                            <span className={cn('w-1.5 h-1.5 rounded-full', job.enabled ? 'bg-green-500' : 'bg-gray-400')} />
+                            {job.enabled ? '启用' : '暂停'}
+                          </span>
+                        )}
                       </td>
                       {isAdmin && (
                         <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            {job.enabled ? (
-                              <button onClick={() => handleAction('pause', job.id)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
-                                <Pause className="w-4 h-4" style={{ color: 'var(--text-sec)' }} />
+                          {editingJob === job.id ? (
+                            <div className="flex items-center justify-end gap-1">
+                              <button onClick={() => handleUpdate(job.id)} className="p-1.5 rounded hover:bg-green-50 dark:hover:bg-green-900/30">
+                                <Save className="w-4 h-4 text-green-500" />
                               </button>
-                            ) : (
-                              <button onClick={() => handleAction('resume', job.id)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
-                                <Play className="w-4 h-4" style={{ color: 'var(--text-sec)' }} />
+                              <button onClick={cancelEdit} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+                                <X className="w-4 h-4 text-gray-400" />
                               </button>
-                            )}
-                            <button onClick={() => handleDelete(job.id)} className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30">
-                              <Trash2 className="w-4 h-4 text-red-400" />
-                            </button>
-                          </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-end gap-1">
+                              <button onClick={() => startEdit(job)} className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30">
+                                <Edit2 className="w-4 h-4 text-blue-400" />
+                              </button>
+                              {job.enabled ? (
+                                <button onClick={() => handleAction('pause', job.id)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+                                  <Pause className="w-4 h-4" style={{ color: 'var(--text-sec)' }} />
+                                </button>
+                              ) : (
+                                <button onClick={() => handleAction('resume', job.id)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+                                  <Play className="w-4 h-4" style={{ color: 'var(--text-sec)' }} />
+                                </button>
+                              )}
+                              <button onClick={() => setViewingHistory(job.id)} className="p-1.5 rounded hover:bg-purple-50 dark:hover:bg-purple-900/30">
+                                <History className="w-4 h-4 text-purple-400" />
+                              </button>
+                              <button onClick={() => handleDelete(job.id)} className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30">
+                                <Trash2 className="w-4 h-4 text-red-400" />
+                              </button>
+                            </div>
+                          )}
                         </td>
                       )}
                     </tr>
@@ -251,6 +426,48 @@ export function Schedules() {
               </tbody>
             </table>
           </div>
+
+          {viewingHistory && (
+            <div className="rounded-lg p-5 shadow-sm border mt-4" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text)' }}>
+                  <History className="w-4 h-4" /> 修改历史
+                </h3>
+                <button onClick={() => setViewingHistory(null)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+                  <X className="w-4 h-4 text-gray-400" />
+                </button>
+              </div>
+              {(!editHistory || editHistory.length === 0) ? (
+                <div className="text-center py-4 text-sm" style={{ color: 'var(--text-sec)' }}>暂无修改记录</div>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {editHistory.map((record) => (
+                    <div key={record.id} className="rounded p-3 text-xs border" style={{ backgroundColor: 'var(--bg)', borderColor: 'var(--border)' }}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium" style={{ color: 'var(--text)' }}>
+                          {record.action === 'delete' ? '删除任务' :
+                           record.action === 'pause' ? '暂停任务' :
+                           record.action === 'resume' ? '恢复任务' :
+                           record.action.startsWith('update:') ? `更新字段 (${record.action.replace('update:', '')})` : record.action}
+                        </span>
+                        <span style={{ color: 'var(--text-sec)' }}>{record.editor} · {record.created_at?.slice(0, 19).replace('T', ' ')}</span>
+                      </div>
+                      {record.old_values && (
+                        <div className="mt-1 font-mono" style={{ color: 'var(--text-sec)' }}>
+                          <span className="text-red-400">- {record.old_values}</span>
+                        </div>
+                      )}
+                      {record.new_values && (
+                        <div className="mt-0.5 font-mono" style={{ color: 'var(--text-sec)' }}>
+                          <span className="text-green-400">+ {record.new_values}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
 
