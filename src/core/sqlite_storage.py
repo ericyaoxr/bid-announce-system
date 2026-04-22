@@ -1,15 +1,16 @@
 """
 SQLite持久化存储实现
 """
+
 from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from ..models.announcement import Announcement, AnnouncementCreate
+from ..models.announcement import Announcement
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -66,10 +67,7 @@ class SQLiteRepository:
         """根据ID获取记录"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            cursor = conn.execute(
-                "SELECT * FROM announcements WHERE id = ?",
-                (id,)
-            )
+            cursor = conn.execute("SELECT * FROM announcements WHERE id = ?", (id,))
             row = cursor.fetchone()
             if row:
                 return self._row_to_announcement(dict(row))
@@ -80,8 +78,7 @@ class SQLiteRepository:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(
-                "SELECT * FROM announcements WHERE content_hash = ?",
-                (content_hash,)
+                "SELECT * FROM announcements WHERE content_hash = ?", (content_hash,)
             )
             row = cursor.fetchone()
             if row:
@@ -115,20 +112,6 @@ class SQLiteRepository:
         data = self.list_all(limit=limit, offset=skip)
         return [self._row_to_announcement(row) for row in data]
 
-    async def count(
-        self,
-        announcement_type: str | None = None,
-        category: str | None = None,
-        start_date: datetime | None = None,
-        end_date: datetime | None = None,
-    ) -> int:
-        """获取总数"""
-        return self.count()
-
-    async def exists(self, content_hash: str) -> bool:
-        """检查记录是否存在"""
-        return self.exists(content_hash)
-
     def _row_to_announcement(self, row: dict[str, Any]) -> Announcement:
         """将数据库行转换为Announcement对象"""
         return Announcement(
@@ -143,55 +126,67 @@ class SQLiteRepository:
             current_status=row.get("current_status"),
             project_source=row.get("project_source"),
             category=row.get("category", ""),
-            publish_date=datetime.fromisoformat(row["publish_date"]) if row.get("publish_date") else datetime.now(timezone.utc),
+            publish_date=datetime.fromisoformat(row["publish_date"])
+            if row.get("publish_date")
+            else datetime.now(UTC),
             deadline=datetime.fromisoformat(row["deadline"]) if row.get("deadline") else None,
             url=row.get("url", ""),
             source=row.get("source", "zcpt.szcg.cn"),
             content_hash=row.get("content_hash", ""),
             raw_content=row.get("raw_content"),
-            created_at=datetime.fromisoformat(row["created_at"]) if row.get("created_at") else datetime.now(timezone.utc),
-            updated_at=datetime.fromisoformat(row["updated_at"]) if row.get("updated_at") else datetime.now(timezone.utc),
+            created_at=datetime.fromisoformat(row["created_at"])
+            if row.get("created_at")
+            else datetime.now(UTC),
+            updated_at=datetime.fromisoformat(row["updated_at"])
+            if row.get("updated_at")
+            else datetime.now(UTC),
         )
 
     def save(self, announcement: Announcement) -> None:
         """保存公告到数据库"""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO announcements
                 (id, project_id, project_no, title, announcement_type, tender_mode,
                  tender_mode_desc, project_type_code, current_status, project_source,
                  category, publish_date, deadline, url, source, content_hash,
                  raw_content, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                announcement.id,
-                announcement.project_id,
-                announcement.project_no,
-                announcement.title,
-                announcement.announcement_type,
-                announcement.tender_mode,
-                announcement.tender_mode_desc,
-                announcement.project_type_code,
-                announcement.current_status,
-                announcement.project_source,
-                announcement.category,
-                announcement.publish_date.isoformat() if announcement.publish_date else None,
-                announcement.deadline.isoformat() if announcement.deadline else None,
-                str(announcement.url),
-                announcement.source,
-                announcement.content_hash,
-                announcement.raw_content,
-                announcement.created_at.isoformat() if announcement.created_at else datetime.now(timezone.utc).isoformat(),
-                announcement.updated_at.isoformat() if announcement.updated_at else datetime.now(timezone.utc).isoformat(),
-            ))
+            """,
+                (
+                    announcement.id,
+                    announcement.project_id,
+                    announcement.project_no,
+                    announcement.title,
+                    announcement.announcement_type,
+                    announcement.tender_mode,
+                    announcement.tender_mode_desc,
+                    announcement.project_type_code,
+                    announcement.current_status,
+                    announcement.project_source,
+                    announcement.category,
+                    announcement.publish_date.isoformat() if announcement.publish_date else None,
+                    announcement.deadline.isoformat() if announcement.deadline else None,
+                    str(announcement.url),
+                    announcement.source,
+                    announcement.content_hash,
+                    announcement.raw_content,
+                    announcement.created_at.isoformat()
+                    if announcement.created_at
+                    else datetime.now(UTC).isoformat(),
+                    announcement.updated_at.isoformat()
+                    if announcement.updated_at
+                    else datetime.now(UTC).isoformat(),
+                ),
+            )
         logger.debug("announcement_saved", id=announcement.id, title=announcement.title)
 
     def exists(self, content_hash: str) -> bool:
         """检查内容哈希是否存在"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
-                "SELECT 1 FROM announcements WHERE content_hash = ? LIMIT 1",
-                (content_hash,)
+                "SELECT 1 FROM announcements WHERE content_hash = ? LIMIT 1", (content_hash,)
             )
             return cursor.fetchone() is not None
 
@@ -207,7 +202,7 @@ class SQLiteRepository:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(
                 "SELECT * FROM announcements ORDER BY publish_date DESC LIMIT ? OFFSET ?",
-                (limit, offset)
+                (limit, offset),
             )
             return [dict(row) for row in cursor.fetchall()]
 
@@ -222,6 +217,7 @@ class SQLiteRepository:
     def export_to_csv(self, filepath: str = "data/announcements.csv") -> None:
         """导出到CSV文件"""
         import csv
+
         data = self.list_all(limit=1000000)
         if not data:
             return
@@ -236,10 +232,7 @@ class SQLiteRepository:
         """同步根据ID获取记录（返回字典）"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            cursor = conn.execute(
-                "SELECT * FROM announcements WHERE id = ?",
-                (id,)
-            )
+            cursor = conn.execute("SELECT * FROM announcements WHERE id = ?", (id,))
             row = cursor.fetchone()
             if row:
                 return dict(row)

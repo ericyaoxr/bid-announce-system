@@ -1,8 +1,10 @@
 """
 测试配置文件 - pytest fixtures
 """
+
 import asyncio
 from collections.abc import AsyncGenerator, Generator
+from datetime import UTC, datetime
 
 import pytest
 
@@ -90,13 +92,12 @@ def repository() -> InMemoryRepository[Announcement]:
 @pytest.fixture
 def sample_announcement_data() -> dict:
     """示例公告数据"""
-    from datetime import datetime
     return {
         "id": "test-123",
         "title": "测试采购公告",
         "announcement_type": "采购公告",
         "category": "货物",
-        "publish_date": datetime.now(),
+        "publish_date": datetime.now(UTC),
         "url": "https://example.com/announcement/123",
         "content_hash": "abc123",
     }
@@ -105,12 +106,11 @@ def sample_announcement_data() -> dict:
 @pytest.fixture
 def sample_announcement_create() -> AnnouncementCreate:
     """示例公告创建数据"""
-    from datetime import datetime
     return AnnouncementCreate(
         title="测试采购公告",
         announcement_type="采购公告",
         category="货物",
-        publish_date=datetime.now(),
+        publish_date=datetime.now(UTC),
         url="https://example.com/announcement/123",
     )
 

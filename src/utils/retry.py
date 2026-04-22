@@ -1,6 +1,7 @@
 """
 重试机制 - 基于tenacity
 """
+
 from collections.abc import Callable
 from typing import TypeVar
 
@@ -54,7 +55,9 @@ def async_http_retry(
     return retry(
         stop=stop_after_attempt(max_attempts),
         wait=wait_exponential(multiplier=1, min=min_wait, max=max_wait),
-        retry=retry_if_exception_type((httpx.HTTPError, httpx.TimeoutException, httpx.ConnectError)),
+        retry=retry_if_exception_type(
+            (httpx.HTTPError, httpx.TimeoutException, httpx.ConnectError)
+        ),
         before_sleep=before_sleep_log(logger, "warning"),
         after=after_log(logger, "debug"),
         reraise=True,

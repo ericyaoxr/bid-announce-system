@@ -1,6 +1,7 @@
 """
 Pydantic模型单元测试
 """
+
 from datetime import UTC, datetime, timedelta
 
 from src.models.announcement import Announcement, AnnouncementCreate
@@ -162,7 +163,7 @@ class TestAnnouncementCreate:
             title="测试公告",
             announcement_type=1,
             category="货物",
-            publish_date=datetime.now(),
+            publish_date=datetime.now(UTC),
             url="https://example.com/123",
         )
 
@@ -176,8 +177,8 @@ class TestAnnouncementCreate:
             title="完整公告",
             announcement_type=1,
             category="工程",
-            publish_date=datetime.now(),
-            deadline=datetime.now(),
+            publish_date=datetime.now(UTC),
+            deadline=datetime.now(UTC),
             url="https://example.com/456",
             org_name="测试单位",
             contact_info="010-12345678",

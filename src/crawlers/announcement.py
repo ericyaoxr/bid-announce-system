@@ -1,6 +1,7 @@
 """
 招标公告采集 - 适配采购平台API
 """
+
 import asyncio
 import time
 from collections.abc import AsyncGenerator
@@ -22,6 +23,7 @@ logger = get_logger(__name__)
 @dataclass
 class CrawlResult:
     """抓取结果"""
+
     success: bool
     items_fetched: int = 0
     items_new: int = 0
@@ -36,6 +38,7 @@ class CrawlResult:
 @dataclass
 class CrawlerConfig:
     """采集数据配置"""
+
     target_url: str
     max_retries: int = 3
     timeout: float = 30.0
@@ -72,17 +75,19 @@ class AnnouncementCrawler:
 
     async def _ensure_client(self) -> None:
         """确保异步客户端已初始化"""
-        if not self._client_initialized and hasattr(self._fetcher, '__aenter__'):
+        if not self._client_initialized and hasattr(self._fetcher, "__aenter__"):
             await self._fetcher.__aenter__()
             self._client_initialized = True
 
     async def close(self) -> None:
         """关闭采集数据及相关资源"""
-        if self._client_initialized and hasattr(self._fetcher, '__aexit__'):
+        if self._client_initialized and hasattr(self._fetcher, "__aexit__"):
             await self._fetcher.__aexit__(None, None, None)
             self._client_initialized = False
 
-    async def crawl_page(self, page: int, announcement_type: int = 1) -> tuple[ParseResult, list[Announcement]]:
+    async def crawl_page(
+        self, page: int, announcement_type: int = 1
+    ) -> tuple[ParseResult, list[Announcement]]:
         """
         抓取单页数据
 
@@ -112,8 +117,7 @@ class AnnouncementCrawler:
 
         # 解析
         announcements, errors = self._parser.parse_to_announcements(
-            response.content,
-            base_url=self._config.base_url
+            response.content, base_url=self._config.base_url
         )
 
         if errors:
@@ -290,7 +294,8 @@ def create_announcement_crawler(
 
     # 采集数据配置
     config = CrawlerConfig(
-        target_url=target_url or f"{settings.target_base_url}/group-tendering-website/officialwebsite/project/page",
+        target_url=target_url
+        or f"{settings.target_base_url}/group-tendering-website/officialwebsite/project/page",
         rate_limit_rpm=rate_limit_rpm,
         batch_size=settings.crawler_batch_size,
         base_url=settings.target_base_url,
@@ -312,6 +317,7 @@ def create_announcement_crawler(
     # 存储
     if use_sqlite:
         from src.core.sqlite_storage import SQLiteRepository
+
         repository = SQLiteRepository(db_path=db_path)
     else:
         repository: BaseRepository[Announcement] = InMemoryRepository()

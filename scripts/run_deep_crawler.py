@@ -1,13 +1,18 @@
 """深度采集数据启动脚本 - 仅采集结果公示+有中标"""
+
 import argparse
 import asyncio
 
-from src.crawlers.deep_crawler import DeepCrawler, ANNOUNCEMENT_TYPES
+from src.crawlers.deep_crawler import DeepCrawler
 
 
 async def main():
     parser = argparse.ArgumentParser(description="中标结果采集系统")
-    parser.add_argument("mode", choices=["list", "detail", "all", "test"], help="运行模式: list=仅列表, detail=仅详情, all=全部, test=测试")
+    parser.add_argument(
+        "mode",
+        choices=["list", "detail", "all", "test"],
+        help="运行模式: list=仅列表, detail=仅详情, all=全部, test=测试",
+    )
     parser.add_argument("--max-pages", type=int, default=None, help="最大页数")
     parser.add_argument("--max-details", type=int, default=None, help="最大详情抓取数")
     parser.add_argument("--db", default="data/announcements_deep.db", help="数据库路径")

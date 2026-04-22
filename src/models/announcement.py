@@ -1,6 +1,7 @@
 """
 招标公告数据模型 - 适配采购平台API
 """
+
 import hashlib
 from datetime import UTC, datetime
 from typing import Any, Self
@@ -10,6 +11,7 @@ from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 class TenderProjectBase(BaseModel):
     """招标项目基础模型"""
+
     project_id: int | None = Field(None, description="项目ID")
     project_no: str = Field(..., description="项目编号")
     tender_mode: str = Field(..., description="招标方式代码")
@@ -30,6 +32,7 @@ class Announcement(TenderProjectBase):
     - releaseTime -> publish_date
     - releaseEndTime -> deadline
     """
+
     id: str = Field(..., description="公告ID（唯一标识）")
     title: str = Field(..., min_length=1, max_length=500, description="公告名称")
     announcement_type: int = Field(default=1, description="公告类型 (1=采购公告)")
@@ -99,7 +102,7 @@ class Announcement(TenderProjectBase):
     def from_api_response(cls, data: dict[str, Any], base_url: str) -> Self:
         """从API响应创建模型"""
         release_time = data.get("releaseTime")
-        publish_date = datetime.fromisoformat(release_time) if release_time else datetime.now(timezone.utc)
+        publish_date = datetime.fromisoformat(release_time) if release_time else datetime.now(UTC)
 
         release_end_time = data.get("releaseEndTime")
         deadline = datetime.fromisoformat(release_end_time) if release_end_time else None
@@ -130,6 +133,7 @@ class Announcement(TenderProjectBase):
 
 class AnnouncementCreate(BaseModel):
     """创建公告的输入模型"""
+
     title: str = Field(..., min_length=1, max_length=500)
     announcement_type: int = Field(default=1)
     category: str = Field(...)
@@ -143,6 +147,7 @@ class AnnouncementCreate(BaseModel):
 
 class AnnouncementUpdate(BaseModel):
     """更新公告的输入模型"""
+
     title: str | None = Field(None)
     category: str | None = Field(None)
     deadline: datetime | None = Field(None)

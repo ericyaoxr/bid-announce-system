@@ -1,16 +1,18 @@
 """深度采集数据 - 抓取5种公告类型 + 详情页（中标人/金额等）"""
+
 from __future__ import annotations
 
 import asyncio
 import json
 import re
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 import httpx
 
+from src.crawlers.base import BaseCrawler
+from src.crawlers.registry import register_crawler
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -22,7 +24,6 @@ HEADERS = {
     "Referer": "https://zcpt.szcg.cn/announcement",
 }
 
-# 公告类型映射
 ANNOUNCEMENT_TYPES = {
     1: "招标公告",
     2: "变更公告",
@@ -32,8 +33,12 @@ ANNOUNCEMENT_TYPES = {
 }
 
 
-class DeepCrawler:
+class DeepCrawler(BaseCrawler):
     """深度采集数据 - 列表页 + 详情页"""
+
+    site_id = "szcg"
+    site_name = "深圳市政府采购中心"
+    base_url = BASE_URL
 
     def __init__(self, db_path: str = "data/announcements_deep.db", rate_limit_rpm: int = 120):
         self.db_path = db_path
@@ -109,7 +114,9 @@ class DeepCrawler:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_publish_date ON announcements(publish_date)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_category ON announcements(category)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_project_id ON announcements(project_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_detail_fetched ON announcements(detail_fetched)")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_detail_fetched ON announcements(detail_fetched)"
+        )
         conn.commit()
         conn.close()
         logger.info("database_initialized", db_path=self.db_path)
@@ -121,7 +128,7 @@ class DeepCrawler:
             return None
         phone_str = str(phone).strip()
         # 匹配中国大陆手机号: 1开头，第二位3-9，共11位
-        match = re.search(r'1[3-9]\d{9}', phone_str)
+        match = re.search(r"1[3-9]\d{9}", phone_str)
         return match.group(0) if match else None
 
     def _ensure_columns(self):
@@ -168,11 +175,19 @@ class DeepCrawler:
 
     # ===== 列表页抓取 =====
 
-    async def fetch_list_page(self, announcement_type: int, page: int = 1, size: int = 20) -> tuple[list[dict], int]:
+    async def fetch_list_page(
+        self, announcement_type: int, page: int = 1, size: int = 20
+    ) -> tuple[list[dict], int]:
         """抓取列表页"""
         data = await self._request(
             f"{BASE_URL}/project/page",
-            params={"announcementType": str(announcement_type), "current": str(page), "size": str(size), "tenderProjectType": "", "ext": ""},
+            params={
+                "announcementType": str(announcement_type),
+                "current": str(page),
+                "size": str(size),
+                "tenderProjectType": "",
+                "ext": "",
+            },
         )
         if not data or not data.get("data"):
             return [], 0
@@ -181,9 +196,15 @@ class DeepCrawler:
         total = data["data"].get("total", 0)
         return records, total
 
-    async def crawl_list(self, announcement_type: int, max_pages: int | None = None, size: int = 20, incremental: bool = False) -> int:
+    async def crawl_list(
+        self,
+        announcement_type: int,
+        max_pages: int | None = None,
+        size: int = 20,
+        incremental: bool = False,
+    ) -> int:
         """抓取指定类型的列表页
-        
+
         Args:
             announcement_type: 公告类型
             max_pages: 最大页数
@@ -191,7 +212,12 @@ class DeepCrawler:
             incremental: 是否增量模式（遇到已存在记录即停止翻页）
         """
         type_name = ANNOUNCEMENT_TYPES.get(announcement_type, f"类型{announcement_type}")
-        logger.info("crawl_list_start", type=type_name, announcement_type=announcement_type, incremental=incremental)
+        logger.info(
+            "crawl_list_start",
+            type=type_name,
+            announcement_type=announcement_type,
+            incremental=incremental,
+        )
 
         # 先获取第一页确定总页数
         records, total = await self.fetch_list_page(announcement_type, 1, size)
@@ -223,11 +249,22 @@ class DeepCrawler:
 
             # 增量模式：如果某页全部是已有记录，说明后续页也都是旧数据，停止
             if incremental and new_count == 0:
-                logger.info("crawl_list_incremental_stop", type=type_name, page=page, message="遇到全旧页，停止翻页")
+                logger.info(
+                    "crawl_list_incremental_stop",
+                    type=type_name,
+                    page=page,
+                    message="遇到全旧页，停止翻页",
+                )
                 break
 
             if page % 50 == 0:
-                logger.info("crawl_list_progress", type=type_name, page=page, total_pages=total_pages, count=count)
+                logger.info(
+                    "crawl_list_progress",
+                    type=type_name,
+                    page=page,
+                    total_pages=total_pages,
+                    count=count,
+                )
 
         logger.info("crawl_list_done", type=type_name, count=count, total=total)
         return count
@@ -236,7 +273,7 @@ class DeepCrawler:
         """保存列表页记录（增量：已有记录不覆盖，保留详情数据）"""
         conn = sqlite3.connect(self.db_path)
         count = 0
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         for r in records:
             aid = str(r.get("announcementId", ""))
@@ -246,7 +283,8 @@ class DeepCrawler:
             try:
                 # INSERT OR IGNORE: 主键冲突时忽略，保留已有记录（含详情数据）
                 # 这样增量采集不会覆盖已抓取的详情
-                cursor = conn.execute("""
+                cursor = conn.execute(
+                    """
                     INSERT OR IGNORE INTO announcements (
                         id, project_id, project_no, title,
                         announcement_type, announcement_type_desc,
@@ -257,26 +295,30 @@ class DeepCrawler:
                         source_url, raw_list_data,
                         created_at, updated_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    aid,
-                    r.get("projectId"),
-                    r.get("projectNo"),
-                    r.get("announcementName"),
-                    announcement_type,
-                    ANNOUNCEMENT_TYPES.get(announcement_type, ""),
-                    r.get("tenderMode"),
-                    r.get("tenderModeDesc"),
-                    r.get("tenderProjectTypeDesc", "").replace("类", "") if r.get("tenderProjectTypeDesc") else None,
-                    r.get("tenderProjectType"),
-                    r.get("releaseTime"),
-                    r.get("releaseEndTime"),
-                    r.get("currentStatus"),
-                    r.get("projectSource"),
-                    f"https://zcpt.szcg.cn/announcement/{r.get('projectId', '')}?projectSource=1",
-                    json.dumps(r, ensure_ascii=False),
-                    now,
-                    now,
-                ))
+                """,
+                    (
+                        aid,
+                        r.get("projectId"),
+                        r.get("projectNo"),
+                        r.get("announcementName"),
+                        announcement_type,
+                        ANNOUNCEMENT_TYPES.get(announcement_type, ""),
+                        r.get("tenderMode"),
+                        r.get("tenderModeDesc"),
+                        r.get("tenderProjectTypeDesc", "").replace("类", "")
+                        if r.get("tenderProjectTypeDesc")
+                        else None,
+                        r.get("tenderProjectType"),
+                        r.get("releaseTime"),
+                        r.get("releaseEndTime"),
+                        r.get("currentStatus"),
+                        r.get("projectSource"),
+                        f"https://zcpt.szcg.cn/announcement/{r.get('projectId', '')}?projectSource=1",
+                        json.dumps(r, ensure_ascii=False),
+                        now,
+                        now,
+                    ),
+                )
                 if cursor.rowcount > 0:
                     count += 1
             except Exception as e:
@@ -333,9 +375,14 @@ class DeepCrawler:
             return data["data"]
         return None
 
-    async def crawl_details(self, batch_size: int = 100, max_items: int | None = None, announcement_type: int | None = None) -> int:
+    async def crawl_details(
+        self,
+        batch_size: int = 100,
+        max_items: int | None = None,
+        announcement_type: int | None = None,
+    ) -> int:
         """抓取所有未获取详情的记录
-        
+
         Args:
             batch_size: 批次大小
             max_items: 最大条数
@@ -344,12 +391,15 @@ class DeepCrawler:
         conn = sqlite3.connect(self.db_path)
 
         query = "SELECT id, project_id, announcement_type FROM announcements WHERE detail_fetched = 0 AND project_id IS NOT NULL"
+        params: list[int] = []
         if announcement_type:
-            query += f" AND announcement_type = {announcement_type}"
+            query += " AND announcement_type = ?"
+            params.append(announcement_type)
         if max_items:
-            query += f" LIMIT {max_items}"
+            query += " LIMIT ?"
+            params.append(max_items)
 
-        rows = conn.execute(query).fetchall()
+        rows = conn.execute(query, params).fetchall()
         conn.close()
 
         total = len(rows)
@@ -374,7 +424,7 @@ class DeepCrawler:
     def _save_detail(self, aid: str, project_id: int, announcement_type: int, detail):
         """保存详情数据（兼容 dict 和 list 格式）"""
         conn = sqlite3.connect(self.db_path)
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         # 处理变更公告返回 list 的情况
         if isinstance(detail, list):
@@ -403,16 +453,18 @@ class DeepCrawler:
             ppr = detail.get("projectPublicityRecordVO")
             if ppr and isinstance(ppr, dict) and ppr.get("winningBidders"):
                 for wb in ppr["winningBidders"]:
-                    winning_bidders.append({
-                        "supplier_name": wb.get("supplierName"),
-                        "bid_amount": wb.get("candidateBidPrice") or wb.get("bidPrice"),
-                        "is_winning": wb.get("isBid"),
-                        "rank": wb.get("sort"),
-                        "supplier_id": wb.get("supplierId"),
-                        "social_credit_code": wb.get("socialCreditCode"),
-                        "is_joint": wb.get("isJoint"),
-                        "is_be_noticed": wb.get("isBeNoticed"),
-                    })
+                    winning_bidders.append(
+                        {
+                            "supplier_name": wb.get("supplierName"),
+                            "bid_amount": wb.get("candidateBidPrice") or wb.get("bidPrice"),
+                            "is_winning": wb.get("isBid"),
+                            "rank": wb.get("sort"),
+                            "supplier_id": wb.get("supplierId"),
+                            "social_credit_code": wb.get("socialCreditCode"),
+                            "is_joint": wb.get("isJoint"),
+                            "is_be_noticed": wb.get("isBeNoticed"),
+                        }
+                    )
 
             # 提取变更记录（dict格式中也可能有）
             change_records = []
@@ -423,7 +475,8 @@ class DeepCrawler:
             return
 
         try:
-            conn.execute("""
+            conn.execute(
+                """
                 UPDATE announcements SET
                     purchase_control_price = ?,
                     bid_price = ?,
@@ -453,45 +506,50 @@ class DeepCrawler:
                     raw_detail_data = ?,
                     updated_at = ?
                 WHERE id = ?
-            """, (
-                pi.get("purchaseControlPrice"),
-                pi.get("bidPrice"),
-                json.dumps(winning_bidders, ensure_ascii=False) if winning_bidders else None,
-                json.dumps(ppr, ensure_ascii=False) if ppr else None,
-                json.dumps(change_records, ensure_ascii=False) if change_records else None,
-                pi.get("address"),
-                pi.get("districtDesc") or pi.get("regionCode"),
-                pi.get("fundSourceDesc"),
-                pi.get("tenderOrganizeFormDesc"),
-                pi.get("purchaseProcessDesc"),
-                pi.get("gradeMethodDesc"),
-                pi.get("qualificationMethodDesc"),
-                pi.get("quotationMethodDesc"),
-                pi.get("isSecurityDeposit"),
-                pi.get("isConsortiumBidding"),
-                pi.get("isEvalSeparate"),
-                pi.get("packageName"),
-                pi.get("packageLatterTypeDesc"),
-                pi.get("tenderCompanyName") or pi.get("enterpriseName"),
-                pi.get("connector"),
-                DeepCrawler._extract_mobile(pi.get("foreignContactPhone")),
-                pi.get("companyAddress"),
-                pi.get("tendererContent"),
-                pi.get("engineeringName"),
-                json.dumps(detail, ensure_ascii=False),
-                now,
-                aid,
-            ))
+            """,
+                (
+                    pi.get("purchaseControlPrice"),
+                    pi.get("bidPrice"),
+                    json.dumps(winning_bidders, ensure_ascii=False) if winning_bidders else None,
+                    json.dumps(ppr, ensure_ascii=False) if ppr else None,
+                    json.dumps(change_records, ensure_ascii=False) if change_records else None,
+                    pi.get("address"),
+                    pi.get("districtDesc") or pi.get("regionCode"),
+                    pi.get("fundSourceDesc"),
+                    pi.get("tenderOrganizeFormDesc"),
+                    pi.get("purchaseProcessDesc"),
+                    pi.get("gradeMethodDesc"),
+                    pi.get("qualificationMethodDesc"),
+                    pi.get("quotationMethodDesc"),
+                    pi.get("isSecurityDeposit"),
+                    pi.get("isConsortiumBidding"),
+                    pi.get("isEvalSeparate"),
+                    pi.get("packageName"),
+                    pi.get("packageLatterTypeDesc"),
+                    pi.get("tenderCompanyName") or pi.get("enterpriseName"),
+                    pi.get("connector"),
+                    DeepCrawler._extract_mobile(pi.get("foreignContactPhone")),
+                    pi.get("companyAddress"),
+                    pi.get("tendererContent"),
+                    pi.get("engineeringName"),
+                    json.dumps(detail, ensure_ascii=False),
+                    now,
+                    aid,
+                ),
+            )
             conn.commit()
 
             # 日志中标信息
             if winning_bidders:
                 for wb in winning_bidders:
                     if wb.get("is_winning") or wb.get("supplier_name"):
-                        logger.info("winning_bidder_found",
-                                    aid=aid, supplier=wb.get("supplier_name"),
-                                    amount=wb.get("bid_amount"),
-                                    is_winning=wb.get("is_winning"))
+                        logger.info(
+                            "winning_bidder_found",
+                            aid=aid,
+                            supplier=wb.get("supplier_name"),
+                            amount=wb.get("bid_amount"),
+                            is_winning=wb.get("is_winning"),
+                        )
 
         except Exception as e:
             logger.error("save_detail_error", aid=aid, error=str(e))
@@ -534,24 +592,32 @@ class DeepCrawler:
         conn = sqlite3.connect(self.db_path)
 
         total = conn.execute("SELECT COUNT(*) FROM announcements").fetchone()[0]
-        with_detail = conn.execute("SELECT COUNT(*) FROM announcements WHERE detail_fetched = 1").fetchone()[0]
-        with_winner = conn.execute("SELECT COUNT(*) FROM announcements WHERE winning_bidders IS NOT NULL AND winning_bidders != '[]'").fetchone()[0]
+        with_detail = conn.execute(
+            "SELECT COUNT(*) FROM announcements WHERE detail_fetched = 1"
+        ).fetchone()[0]
+        with_winner = conn.execute(
+            "SELECT COUNT(*) FROM announcements WHERE winning_bidders IS NOT NULL AND winning_bidders != '[]'"
+        ).fetchone()[0]
 
         print(f"\n{'=' * 50}")
-        print(f"  数据统计")
+        print("  数据统计")
         print(f"{'=' * 50}")
         print(f"  总记录数: {total}")
         print(f"  已获取详情: {with_detail}")
         print(f"  含中标人: {with_winner}")
 
         # 按类型统计
-        print(f"\n  按类型统计:")
-        for row in conn.execute("SELECT announcement_type_desc, COUNT(*) FROM announcements GROUP BY announcement_type ORDER BY COUNT(*) DESC"):
+        print("\n  按类型统计:")
+        for row in conn.execute(
+            "SELECT announcement_type_desc, COUNT(*) FROM announcements GROUP BY announcement_type ORDER BY COUNT(*) DESC"
+        ):
             print(f"    {row[0]}: {row[1]}")
 
         # 中标人示例
-        print(f"\n  中标人示例:")
-        for row in conn.execute("SELECT id, title, winning_bidders FROM announcements WHERE winning_bidders IS NOT NULL AND winning_bidders != '[]' LIMIT 5"):
+        print("\n  中标人示例:")
+        for row in conn.execute(
+            "SELECT id, title, winning_bidders FROM announcements WHERE winning_bidders IS NOT NULL AND winning_bidders != '[]' LIMIT 5"
+        ):
             wbs = json.loads(row[2])
             for wb in wbs:
                 if wb.get("supplier_name"):
@@ -561,15 +627,15 @@ class DeepCrawler:
 
     def remove_no_winner(self) -> int:
         """删除已获取详情但无中标人的记录（结果公示专用）
-        
+
         Returns:
             删除的记录数
         """
         conn = sqlite3.connect(self.db_path)
         # 删除：已获取详情 + 无中标人（winning_bidders为空或[]）
         cursor = conn.execute("""
-            DELETE FROM announcements 
-            WHERE detail_fetched = 1 
+            DELETE FROM announcements
+            WHERE detail_fetched = 1
             AND (winning_bidders IS NULL OR winning_bidders = '' OR winning_bidders = '[]')
         """)
         removed = cursor.rowcount

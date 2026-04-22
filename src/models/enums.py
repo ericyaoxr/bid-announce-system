@@ -1,10 +1,11 @@
 """
 枚举类型定义
 """
-from enum import Enum
+
+from enum import StrEnum
 
 
-class AnnouncementType(str, Enum):
+class AnnouncementType(StrEnum):
     """公示类型枚举"""
 
     PROCUREMENT = "采购公告"
@@ -24,7 +25,7 @@ class AnnouncementType(str, Enum):
         return cls.OTHER
 
 
-class Category(str, Enum):
+class Category(StrEnum):
     """采购类别枚举"""
 
     ENGINEERING = "工程"
@@ -42,7 +43,7 @@ class Category(str, Enum):
         return cls.OTHER
 
 
-class CrawlerStatus(str, Enum):
+class CrawlerStatus(StrEnum):
     """采集数据运行状态"""
 
     IDLE = "idle"
@@ -52,7 +53,7 @@ class CrawlerStatus(str, Enum):
     ERROR = "error"
 
 
-class DataSource(str, Enum):
+class DataSource(StrEnum):
     """数据来源"""
 
     OFFICIAL = "zcpt.szcg.cn"

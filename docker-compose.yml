@@ -1,21 +1,31 @@
 version: "3.8"
 
 services:
-  bid-announce:
-    image: ghcr.io/ericyaoxr/bid-announce-system:latest
-    # 如需本地构建，取消注释下面一行并注释上面的 image
-    # build: .
-    container_name: bid-announce
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bid-announce-system
     restart: unless-stopped
     ports:
-      - "${PORT:-8000}:8000"
+      - "8000:8000"
     volumes:
       - ./data:/app/data
     environment:
-      - TZ=Asia/Shanghai
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/dashboard')"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
       timeout: 10s
-      start_period: 15s
       retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.5"

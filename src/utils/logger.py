@@ -1,20 +1,29 @@
 """
 结构化日志工具 - 使用structlog
 """
+
+import logging
 import sys
 from typing import Any
 
 import structlog
 from structlog.types import Processor
 
+_LOG_LEVELS = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+}
+
 
 def configure_logging(log_level: str = "INFO", log_format: str = "json") -> None:
-    """配置structlog"""
+    level = _LOG_LEVELS.get(log_level.upper(), logging.INFO)
 
     processors: list[Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
-        structlog.stdlib.add_logger_name,
         structlog.stdlib.PositionalArgumentsFormatter(),
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
@@ -25,14 +34,14 @@ def configure_logging(log_level: str = "INFO", log_format: str = "json") -> None
         processors.append(structlog.processors.JSONRenderer())
     else:
         processors.append(
-            structlog.dev.ConsoleRenderer(colors=True, exception_formatter=structlog.dev.plain_traceback)
+            structlog.dev.ConsoleRenderer(
+                colors=True, exception_formatter=structlog.dev.plain_traceback
+            )
         )
 
     structlog.configure(
         processors=processors,
-        wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(structlog.stdlib, log_level.upper(), structlog.INFO)
-        ),
+        wrapper_class=structlog.make_filtering_bound_logger(level),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(file=sys.stdout),
         cache_logger_on_first_use=True,

@@ -1,6 +1,7 @@
 """
 数据清洗管道
 """
+
 import re
 from typing import TypedDict
 
@@ -12,6 +13,7 @@ logger = get_logger(__name__)
 
 class CleaningResult(TypedDict):
     """清洗结果"""
+
     cleaned: bool
     title: str
     content: str | None

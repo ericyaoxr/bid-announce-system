@@ -1,6 +1,7 @@
 """
 解析器单元测试 - 适配API格式
 """
+
 from src.core.parser import DetailPageParser, JSONParser, ListPageParser
 
 
@@ -12,7 +13,7 @@ class TestListPageParser:
         parser = ListPageParser()
 
         # 模拟实际API响应格式
-        api_response = b'''
+        api_response = b"""
         {
             "code": 200,
             "msg": "\u64cd\u4f5c\u6210\u529f",
@@ -53,7 +54,7 @@ class TestListPageParser:
                 "pages": 5
             }
         }
-        '''
+        """
 
         result = parser.parse(api_response)
 
@@ -68,13 +69,13 @@ class TestListPageParser:
         """测试解析错误响应"""
         parser = ListPageParser()
 
-        error_response = b'''
+        error_response = b"""
         {
             "code": 500,
             "msg": "Internal Server Error",
             "data": null
         }
-        '''
+        """
 
         result = parser.parse(error_response)
 
@@ -92,7 +93,7 @@ class TestListPageParser:
         """测试转换为Announcement对象"""
         parser = ListPageParser()
 
-        api_response = b'''
+        api_response = b"""
         {
             "code": 200,
             "msg": "Success",
@@ -119,7 +120,7 @@ class TestListPageParser:
                 "pages": 1
             }
         }
-        '''
+        """
 
         announcements, errors = parser.parse_to_announcements(api_response, "https://zcpt.szcg.cn")
 

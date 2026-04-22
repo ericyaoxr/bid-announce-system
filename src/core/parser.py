@@ -1,6 +1,7 @@
 """
 解析器 - 适配采购平台API
 """
+
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -13,6 +14,7 @@ from src.models.announcement import Announcement
 @dataclass
 class ParseResult:
     """解析结果"""
+
     success: bool
     items: list[dict[str, Any]] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
@@ -64,8 +66,7 @@ class ListPageParser:
             code = data.get("code")
             if code != 200:
                 return ParseResult(
-                    success=False,
-                    errors=[f"API返回错误码: {code}, 消息: {data.get('msg')}"]
+                    success=False, errors=[f"API返回错误码: {code}, 消息: {data.get('msg')}"]
                 )
 
             # 提取数据部分
@@ -91,20 +92,12 @@ class ListPageParser:
             )
 
         except orjson.JSONDecodeError as e:
-            return ParseResult(
-                success=False,
-                errors=[f"JSON解析失败: {str(e)}"]
-            )
+            return ParseResult(success=False, errors=[f"JSON解析失败: {str(e)}"])
         except Exception as e:
-            return ParseResult(
-                success=False,
-                errors=[f"解析异常: {str(e)}"]
-            )
+            return ParseResult(success=False, errors=[f"解析异常: {str(e)}"])
 
     def parse_to_announcements(
-        self,
-        content: bytes | str,
-        base_url: str = "https://zcpt.szcg.cn"
+        self, content: bytes | str, base_url: str = "https://zcpt.szcg.cn"
     ) -> tuple[list[Announcement], list[str]]:
         """
         解析并转换为Announcement对象
@@ -128,7 +121,7 @@ class ListPageParser:
                 announcement = Announcement.from_api_response(item, base_url)
                 announcements.append(announcement)
             except Exception as e:
-                errors.append(f"第{i+1}条记录转换失败: {str(e)}")
+                errors.append(f"第{i + 1}条记录转换失败: {str(e)}")
 
         return announcements, errors
 
@@ -167,10 +160,7 @@ class JSONParser:
             )
 
         except orjson.JSONDecodeError as e:
-            return ParseResult(
-                success=False,
-                errors=[f"JSON解析失败: {str(e)}"]
-            )
+            return ParseResult(success=False, errors=[f"JSON解析失败: {str(e)}"])
 
 
 class DetailPageParser:
@@ -195,16 +185,15 @@ class DetailPageParser:
             publish_date = sel.css(self._selectors.get("publish_date", "span.time::text")).get()
 
             if title:
-                items.append({
-                    "title": title.strip(),
-                    "content": content_text.strip() if content_text else "",
-                    "publish_date": publish_date.strip() if publish_date else None,
-                })
+                items.append(
+                    {
+                        "title": title.strip(),
+                        "content": content_text.strip() if content_text else "",
+                        "publish_date": publish_date.strip() if publish_date else None,
+                    }
+                )
 
             return ParseResult(success=True, items=items)
 
         except Exception as e:
-            return ParseResult(
-                success=False,
-                errors=[f"HTML解析失败: {str(e)}"]
-            )
+            return ParseResult(success=False, errors=[f"HTML解析失败: {str(e)}"])

@@ -1,11 +1,13 @@
 """
 URL配置 - 采购平台API
 """
+
 from typing import TypedDict
 
 
 class APIEndpoint(TypedDict, total=False):
     """API端点配置"""
+
     path: str
     method: str
     description: str
@@ -13,6 +15,7 @@ class APIEndpoint(TypedDict, total=False):
 
 class URLConfig(TypedDict):
     """URL配置"""
+
     base_url: str
     api_base: str
     endpoints: dict[str, APIEndpoint]

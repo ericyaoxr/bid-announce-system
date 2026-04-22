@@ -1,11 +1,13 @@
 """
 选择器配置 - 采购平台API字段映射
 """
+
 from typing import TypedDict
 
 
 class APIFieldMapping(TypedDict):
     """API字段映射配置"""
+
     # API响应字段名
     api_field: str
     # 对应的数据模型字段

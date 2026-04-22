@@ -1,6 +1,7 @@
 """
 数据增强管道
 """
+
 from typing import TypedDict
 
 from ..models.announcement import Announcement
@@ -11,6 +12,7 @@ logger = get_logger(__name__)
 
 class EnrichmentResult(TypedDict):
     """增强结果"""
+
     enriched: bool
     org_name: str | None
     contact_info: str | None

@@ -1,6 +1,7 @@
 """
 限流器 - 支持内存和Redis两种实现
 """
+
 import asyncio
 import time
 from dataclasses import dataclass
@@ -196,12 +197,15 @@ class RedisRateLimiter:
 @dataclass
 class RateLimitConfig:
     """限流配置"""
+
     backend: str = "memory"  # "memory" or "redis"
     rate: float = 60.0  # 每秒/每分钟请求数
     burst: int = 20  # 突发容量
 
 
-def create_rate_limiter(config: RateLimitConfig, redis_client: object | None = None) -> RateLimiterBackend:
+def create_rate_limiter(
+    config: RateLimitConfig, redis_client: object | None = None
+) -> RateLimiterBackend:
     """
     创建限流器实例
 

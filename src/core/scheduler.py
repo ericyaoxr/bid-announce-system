@@ -1,6 +1,7 @@
 """
 任务调度器 - 基于APScheduler
 """
+
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
@@ -16,6 +17,7 @@ logger = get_logger(__name__)
 @dataclass
 class ScheduledJob:
     """定时任务定义"""
+
     id: str
     name: str
     func: Callable[[], Awaitable[None]]
@@ -207,63 +209,56 @@ def get_scheduler() -> JobScheduler:
 
 # 预定义的任务钩子
 async def incremental_crawl_job() -> None:
-    """增量抓取任务"""
-    from .config.settings import get_settings
-    from .crawlers.announcement import create_announcement_crawler
+    from src.config.settings import get_settings
+    from src.crawlers.deep_crawler import DeepCrawler
 
     settings = get_settings()
-
-    crawler = create_announcement_crawler(
-        target_url=f"{settings.target_base_url}/api/v1/announcements",
-        rate_limit_rpm=settings.crawler_rate_limit_rpm,
-    )
-
+    crawler = DeepCrawler(db_path=settings.db_path, rate_limit_rpm=settings.crawler_rate_limit_rpm)
     logger.info("incremental_crawl_job_started")
-    result = await crawler.crawl_incremental(days=1)
-    logger.info("incremental_crawl_job_completed", result=result)
+    try:
+        list_count = await crawler.crawl_list(
+            4, max_pages=settings.crawler_default_pages, incremental=True
+        )
+        detail_count = await crawler.crawl_details(announcement_type=4)
+        crawler.remove_no_winner()
+        logger.info(
+            "incremental_crawl_job_completed", list_count=list_count, detail_count=detail_count
+        )
+    finally:
+        await crawler.close()
 
 
 async def full_crawl_job() -> None:
-    """全量抓取任务"""
-    from .config.settings import get_settings
-    from .crawlers.announcement import create_announcement_crawler
+    from src.config.settings import get_settings
+    from src.crawlers.deep_crawler import DeepCrawler
 
     settings = get_settings()
-
-    crawler = create_announcement_crawler(
-        target_url=f"{settings.target_base_url}/api/v1/announcements",
-        rate_limit_rpm=settings.crawler_rate_limit_rpm,
-    )
-
+    crawler = DeepCrawler(db_path=settings.db_path, rate_limit_rpm=settings.crawler_rate_limit_rpm)
     logger.info("full_crawl_job_started")
-    page = 1
-    total_fetched = 0
-
-    async for result in crawler.crawl_paginated(start_page=1, max_pages=1000):
-        total_fetched += result.items_fetched
-        page += 1
-
-    logger.info("full_crawl_job_completed", total_fetched=total_fetched, pages=page)
+    try:
+        list_count = await crawler.crawl_list(4, max_pages=1000)
+        detail_count = await crawler.crawl_details(announcement_type=4)
+        crawler.remove_no_winner()
+        logger.info("full_crawl_job_completed", list_count=list_count, detail_count=detail_count)
+    finally:
+        await crawler.close()
 
 
 def setup_default_jobs(scheduler: JobScheduler) -> None:
-    """配置默认任务"""
-    from .config.settings import get_settings
+    from src.config.settings import get_settings
 
     settings = get_settings()
 
-    # 增量抓取 - 每天凌晨2点
     scheduler.add_job(
         id="incremental_crawl",
         name="增量抓取",
         func=incremental_crawl_job,
-        cron=f"0 {settings.schedule_incremental_hour} * * *",
+        cron=settings.scheduler_incremental_cron,
     )
 
-    # 全量抓取 - 每周日凌晨3点
     scheduler.add_job(
         id="full_crawl",
         name="全量抓取",
         func=full_crawl_job,
-        cron="0 3 * * 0",
+        cron=settings.scheduler_full_cron,
     )

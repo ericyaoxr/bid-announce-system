@@ -1,6 +1,7 @@
 """
 HTTP客户端封装 - 支持重试、UA、代理
 """
+
 from dataclasses import dataclass
 from typing import Self
 
@@ -16,6 +17,7 @@ logger = get_logger(__name__)
 @dataclass
 class FetcherConfig:
     """HTTP客户端配置"""
+
     timeout: float = 30.0
     max_retries: int = 3
     min_retry_wait: float = 1.0

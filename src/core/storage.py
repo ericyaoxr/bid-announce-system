@@ -1,8 +1,9 @@
 """
 数据存储抽象层 - Repository模式
 """
+
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Generic, TypeVar
 
 from ..models.announcement import Announcement, AnnouncementCreate, AnnouncementUpdate
@@ -124,7 +125,7 @@ class InMemoryRepository(BaseRepository[T]):
 
         # 如果传入的是完整的Announcement对象，替换整个记录
         if isinstance(entity, Announcement):
-            entity.updated_at = datetime.now(timezone.utc)
+            entity.updated_at = datetime.now(UTC)
             self._store[id] = entity
             logger.info("announcement_updated", id=id)
             return entity
@@ -135,7 +136,7 @@ class InMemoryRepository(BaseRepository[T]):
             if value is not None:
                 setattr(existing, key, value)
 
-        existing.updated_at = datetime.now(timezone.utc)
+        existing.updated_at = datetime.now(UTC)
         self._store[id] = existing
 
         logger.info("announcement_updated", id=id)
@@ -203,6 +204,7 @@ class InMemoryRepository(BaseRepository[T]):
     def _generate_id(self) -> str:
         """生成ID"""
         import uuid
+
         return str(uuid.uuid4())
 
 

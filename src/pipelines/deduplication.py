@@ -1,6 +1,7 @@
 """
 去重管道 - 基于内容哈希
 """
+
 import hashlib
 from typing import TypedDict
 
@@ -12,6 +13,7 @@ logger = get_logger(__name__)
 
 class DeduplicationResult(TypedDict):
     """去重结果"""
+
     is_duplicate: bool
     original_id: str | None
     hash: str

@@ -1,6 +1,7 @@
 """
 采集数据启动脚本
 """
+
 import asyncio
 import sys
 from pathlib import Path
@@ -9,9 +10,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.config.settings import get_settings
+from src.core.scheduler import get_scheduler, setup_default_jobs
+from src.crawlers.deep_crawler import DeepCrawler
 from src.utils.logger import configure_logging, get_logger
-from src.crawlers.announcement import create_announcement_crawler
-from src.core.scheduler import JobScheduler, setup_default_jobs
 
 logger = get_logger(__name__)
 
@@ -23,73 +24,44 @@ async def run_incremental_crawl() -> None:
 
     logger.info("starting_incremental_crawl", target=settings.api_base_url)
 
-    crawler = create_announcement_crawler(
-        target_url=f"{settings.api_base_url}/officialwebsite/project/page",
-        rate_limit_rpm=settings.crawler_rate_limit_rpm,
-    )
-
-    result = await crawler.crawl_incremental(days=1)
+    crawler = DeepCrawler(base_url=settings.api_base_url)
+    result = await crawler.crawl_list(announcement_type=1, max_pages=10, incremental=True)
 
     logger.info(
         "crawl_completed",
-        success=result.success,
-        items_fetched=result.items_fetched,
-        items_new=result.items_new,
-        items_updated=result.items_updated,
-        duration_ms=result.duration_ms,
+        success=result,
+        items_fetched=result,
     )
 
-    if result.errors:
-        logger.error("crawl_errors", errors=result.errors)
 
-
-async def run_full_crawl(max_pages: int = 1000, use_sqlite: bool = True) -> None:
+async def run_full_crawl(max_pages: int = 1000) -> None:
     """运行全量抓取"""
     settings = get_settings()
     configure_logging(settings.log_level, settings.log_format)
 
-    logger.info("starting_full_crawl", target=settings.api_base_url, max_pages=max_pages, use_sqlite=use_sqlite)
-
-    crawler = create_announcement_crawler(
-        target_url=f"{settings.api_base_url}/officialwebsite/project/page",
-        rate_limit_rpm=settings.crawler_rate_limit_rpm,
-        use_sqlite=use_sqlite,
+    logger.info(
+        "starting_full_crawl",
+        target=settings.api_base_url,
+        max_pages=max_pages,
     )
 
-    page = 1
+    crawler = DeepCrawler(base_url=settings.api_base_url)
     total_fetched = 0
-    total_new = 0
-    total_updated = 0
 
     try:
-        async for result in crawler.crawl_paginated(start_page=1, max_pages=max_pages):
-            total_fetched += result.items_fetched
-            total_new += result.items_new
-            total_updated += result.items_updated
-
+        for ann_type in [1, 2, 3, 4]:
+            result = await crawler.crawl_list(announcement_type=ann_type, max_pages=max_pages)
+            total_fetched += result
             logger.info(
-                "page_completed",
-                page=page,
-                items=result.items_fetched,
-                new=result.items_new,
-                updated=result.items_updated,
+                "type_completed",
+                type=ann_type,
+                items=result,
             )
-            page += 1
 
         logger.info(
             "full_crawl_completed",
-            total_pages=page - 1,
             total_fetched=total_fetched,
-            total_new=total_new,
-            total_updated=total_updated,
         )
-
-        # 导出数据
-        if use_sqlite:
-            from src.core.sqlite_storage import SQLiteRepository
-            repo = SQLiteRepository()
-            print(f"\n当前数据库共 {repo.count()} 条记录")
-            print(f"数据存储位置: data/announcements.db")
     finally:
         await crawler.close()
 

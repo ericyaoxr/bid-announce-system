@@ -1,12 +1,9 @@
 """
 采集数据集成测试 - 适配当前实现
 """
-from datetime import datetime, timezone
 
-import pytest
-
-from src.core.parser import ListPageParser, JSONParser
-from src.crawlers.announcement import CrawlResult, CrawlerConfig
+from src.core.parser import JSONParser, ListPageParser
+from src.crawlers.announcement import CrawlerConfig, CrawlResult
 
 
 class TestListPageParserIntegration:
@@ -17,7 +14,7 @@ class TestListPageParserIntegration:
         parser = ListPageParser()
 
         # 模拟实际API响应
-        api_response = b'''
+        api_response = b"""
         {
             "code": 200,
             "msg": "Success",
@@ -44,7 +41,7 @@ class TestListPageParserIntegration:
                 "pages": 1436
             }
         }
-        '''
+        """
 
         result = parser.parse(api_response)
 
@@ -60,7 +57,7 @@ class TestListPageParserIntegration:
         """测试转换为Announcement对象"""
         parser = ListPageParser()
 
-        api_response = b'''
+        api_response = b"""
         {
             "code": 200,
             "msg": "Success",
@@ -87,7 +84,7 @@ class TestListPageParserIntegration:
                 "pages": 1
             }
         }
-        '''
+        """
 
         announcements, errors = parser.parse_to_announcements(api_response, "https://zcpt.szcg.cn")
 
@@ -185,7 +182,7 @@ class TestJSONParserIntegration:
         parser = JSONParser()
 
         # JSONParser looks for list at top level or nested under common keys
-        response = b'''
+        response = b"""
         {
             "items": [
                 {"id": "1", "name": "Item 1"},
@@ -195,7 +192,7 @@ class TestJSONParserIntegration:
             "page": 1,
             "pageSize": 20
         }
-        '''
+        """
 
         result = parser.parse(response)
 

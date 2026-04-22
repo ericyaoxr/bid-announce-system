@@ -1,6 +1,7 @@
 """
 数据库初始化脚本
 """
+
 import asyncio
 import sys
 from pathlib import Path
