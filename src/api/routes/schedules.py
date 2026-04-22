@@ -130,7 +130,8 @@ async def create_schedule(req: ScheduleCreate, db: DbSession, admin: AdminUser) 
         enabled=req.enabled,
     )
     db.add(task)
-    await db.flush()
+    await db.commit()
+    await db.refresh(task)
 
     _register_job_to_scheduler(task)
 
@@ -145,7 +146,7 @@ async def delete_schedule(job_id: str, db: DbSession, _admin: AdminUser) -> dict
     task = result.scalar()
     if task:
         await db.delete(task)
-        await db.flush()
+        await db.commit()
 
     scheduler = get_scheduler()
     scheduler.remove_job(job_id)
@@ -160,7 +161,7 @@ async def pause_schedule(job_id: str, db: DbSession, _admin: AdminUser) -> dict:
     task = result.scalar()
     if task:
         task.enabled = False
-        await db.flush()
+        await db.commit()
 
     scheduler = get_scheduler()
     scheduler.pause_job(job_id)
@@ -175,7 +176,7 @@ async def resume_schedule(job_id: str, db: DbSession, _admin: AdminUser) -> dict
     task = result.scalar()
     if task:
         task.enabled = True
-        await db.flush()
+        await db.commit()
 
     scheduler = get_scheduler()
     scheduler.resume_job(job_id)
