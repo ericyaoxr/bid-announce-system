@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -53,17 +53,18 @@ async def lifespan(app: FastAPI):
 
 
 async def _load_scheduled_tasks(scheduler) -> None:
-    import sqlite3
-    from src.db.models import ScheduledTask
+    from sqlalchemy import select
+
     from src.db.database import get_session
+    from src.db.models import ScheduledTask
 
     async for session in get_session():
-        from sqlalchemy import select
-        result = await session.execute(select(ScheduledTask).where(ScheduledTask.enabled == True))
+        result = await session.execute(select(ScheduledTask).where(ScheduledTask.enabled))
         tasks = result.scalars().all()
 
         for task in tasks:
             from src.api.routes.schedules import _register_job_to_scheduler
+
             _register_job_to_scheduler(task)
             logger.info("loaded_scheduled_task", id=task.id, name=task.name)
 
@@ -135,11 +136,18 @@ if web_dir.exists():
 
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
-        if full_path.startswith("api/") or full_path.startswith("docs") or full_path.startswith("openapi.json") or full_path.startswith("redoc"):
+        if (
+            full_path.startswith("api/")
+            or full_path.startswith("docs")
+            or full_path.startswith("openapi.json")
+            or full_path.startswith("redoc")
+        ):
             from fastapi import HTTPException
+
             raise HTTPException(status_code=404, detail="Not Found")
         index_path = web_dir / "index.html"
         if index_path.exists():
             return FileResponse(index_path)
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404)

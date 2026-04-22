@@ -1,12 +1,15 @@
-import urllib.request
 import json
+import urllib.request
 
 BASE = "http://localhost:8000"
+
 
 def test(name, url, method="GET", data=None):
     try:
         if data:
-            req = urllib.request.Request(url, data=json.dumps(data).encode(), headers={"Content-Type": "application/json"})
+            req = urllib.request.Request(
+                url, data=json.dumps(data).encode(), headers={"Content-Type": "application/json"}
+            )
         else:
             req = urllib.request.Request(url)
         r = urllib.request.urlopen(req)
@@ -17,6 +20,7 @@ def test(name, url, method="GET", data=None):
         body = e.read().decode() if e.fp else ""
         print(f"FAIL {name}: {e.code} {e.reason}")
         return e.code, body, e.headers
+
 
 # 1. Health
 test("Health", f"{BASE}/api/health")
@@ -43,7 +47,9 @@ has_root = 'id="root"' in body
 print(f"     Has root div: {has_root}")
 
 # 7. Login API
-status, body, _ = test("Login API", f"{BASE}/api/auth/login", data={"username": "admin", "password": "admin"})
+status, body, _ = test(
+    "Login API", f"{BASE}/api/auth/login", data={"username": "admin", "password": "admin"}
+)
 if status == 200:
     data = json.loads(body)
     print(f"     Has token: {'access_token' in data}")
@@ -51,7 +57,9 @@ if status == 200:
     print(f"     Is admin: {data.get('is_admin')}")
 
 # 8. Dashboard API (needs auth)
-status, body, _ = test("Login for token", f"{BASE}/api/auth/login", data={"username": "admin", "password": "admin"})
+status, body, _ = test(
+    "Login for token", f"{BASE}/api/auth/login", data={"username": "admin", "password": "admin"}
+)
 if status == 200:
     token = json.loads(body)["access_token"]
     req = urllib.request.Request(f"{BASE}/api/dashboard")

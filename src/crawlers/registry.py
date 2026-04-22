@@ -29,7 +29,7 @@ def register_crawler(
     }
 
 
-def get_crawler(site_id: str, **kwargs) -> "BaseCrawler":
+def get_crawler(site_id: str, **kwargs) -> BaseCrawler:
     entry = _registry.get(site_id)
     if not entry:
         raise ValueError(f"Unknown crawler site_id: {site_id}")

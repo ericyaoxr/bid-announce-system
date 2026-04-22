@@ -236,14 +236,17 @@ async def _async_crawler_main(mode: str, max_pages: int, days: int | None) -> No
 async def _send_crawl_notification(mode: str, total: int, with_winner: int) -> None:
     try:
         import json
+
+        from sqlalchemy import select
+
         from src.core.notifier import NotificationService
         from src.db.database import get_session
+        from src.db.models import NotificationConfig
 
         async for session in get_session():
-            from sqlalchemy import select
-            from src.db.models import NotificationConfig
-
-            result = await session.execute(select(NotificationConfig).where(NotificationConfig.enabled == True))
+            result = await session.execute(
+                select(NotificationConfig).where(NotificationConfig.enabled)
+            )
             configs = result.scalars().all()
             if not configs:
                 break
@@ -258,7 +261,12 @@ async def _send_crawl_notification(mode: str, total: int, with_winner: int) -> N
             ]
 
             service = NotificationService({"notifiers": notifier_configs})
-            mode_label = {"incremental": "增量", "full": "全量", "by_date": "按时间", "detail_only": "仅详情"}.get(mode, mode)
+            mode_label = {
+                "incremental": "增量",
+                "full": "全量",
+                "by_date": "按时间",
+                "detail_only": "仅详情",
+            }.get(mode, mode)
             await service.send(
                 f"采集完成 - {mode_label}模式",
                 f"总记录数: {total}\n有中标记录: {with_winner}",

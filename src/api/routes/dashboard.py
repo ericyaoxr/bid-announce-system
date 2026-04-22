@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter
 from pydantic import BaseModel
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 
 from src.api.deps import DbSession
 from src.db.models import Announcement

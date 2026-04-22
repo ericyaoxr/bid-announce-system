@@ -12,7 +12,6 @@ from pathlib import Path
 import httpx
 
 from src.crawlers.base import BaseCrawler
-from src.crawlers.registry import register_crawler
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

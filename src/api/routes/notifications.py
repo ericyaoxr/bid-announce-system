@@ -1,5 +1,4 @@
 import json
-from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -36,7 +35,9 @@ class NotificationTestRequest(BaseModel):
 
 @router.get("/configs")
 async def list_configs(db: DbSession) -> list[dict]:
-    result = await db.execute(select(NotificationConfig).order_by(NotificationConfig.created_at.desc()))
+    result = await db.execute(
+        select(NotificationConfig).order_by(NotificationConfig.created_at.desc())
+    )
     configs = result.scalars().all()
     return [
         {
@@ -70,7 +71,9 @@ async def create_config(req: NotificationConfigCreate, db: DbSession, _admin: Ad
 
 
 @router.put("/configs/{config_id}")
-async def update_config(config_id: str, req: NotificationConfigUpdate, db: DbSession, _admin: AdminUser) -> dict:
+async def update_config(
+    config_id: str, req: NotificationConfigUpdate, db: DbSession, _admin: AdminUser
+) -> dict:
     result = await db.execute(select(NotificationConfig).where(NotificationConfig.id == config_id))
     config = result.scalar()
     if not config:
@@ -115,7 +118,7 @@ async def toggle_config(config_id: str, db: DbSession, _admin: AdminUser) -> dic
 
 @router.post("/test")
 async def test_notification(req: NotificationTestRequest, db: DbSession, _admin: AdminUser) -> dict:
-    result = await db.execute(select(NotificationConfig).where(NotificationConfig.enabled == True))
+    result = await db.execute(select(NotificationConfig).where(NotificationConfig.enabled))
     configs = result.scalars().all()
 
     notifier_configs = [
@@ -134,7 +137,7 @@ async def test_notification(req: NotificationTestRequest, db: DbSession, _admin:
 
 @router.post("/send")
 async def send_notification(req: NotificationTestRequest, db: DbSession, _admin: AdminUser) -> dict:
-    result = await db.execute(select(NotificationConfig).where(NotificationConfig.enabled == True))
+    result = await db.execute(select(NotificationConfig).where(NotificationConfig.enabled))
     configs = result.scalars().all()
 
     notifier_configs = [

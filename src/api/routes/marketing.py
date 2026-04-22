@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter
 from pydantic import BaseModel
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 
 from src.api.deps import DbSession
 from src.db.models import Announcement
@@ -59,7 +59,6 @@ class MarketingStats(BaseModel):
 async def get_marketing_stats(db: DbSession) -> MarketingStats:
     now = datetime.now(UTC)
     six_months_ago = (now - timedelta(days=180)).isoformat()
-    one_year_ago = (now - timedelta(days=365)).isoformat()
 
     result = MarketingStats()
 
@@ -81,15 +80,12 @@ async def _compute_region_distribution(db: DbSession, result: MarketingStats) ->
         .order_by(func.count(Announcement.id).desc())
         .limit(15)
     )
-    result.region_distribution = [
-        RegionStat(region=r[0] or "未知", count=r[1]) for r in rows.all()
-    ]
+    result.region_distribution = [RegionStat(region=r[0] or "未知", count=r[1]) for r in rows.all()]
 
 
 async def _compute_competitor_analysis(db: DbSession, result: MarketingStats) -> None:
     winner_rows = await db.execute(
-        select(Announcement.winning_bidders, Announcement.title, Announcement.category)
-        .where(
+        select(Announcement.winning_bidders, Announcement.title, Announcement.category).where(
             Announcement.winning_bidders.isnot(None),
             Announcement.winning_bidders != "",
             Announcement.winning_bidders != "[]",
@@ -173,7 +169,9 @@ async def _compute_market_opportunities(db: DbSession, result: MarketingStats) -
             try:
                 for w in json.loads(wb_str):
                     if w.get("is_winning") == 1 and w.get("supplier_name"):
-                        supplier_count[w["supplier_name"]] = supplier_count.get(w["supplier_name"], 0) + 1
+                        supplier_count[w["supplier_name"]] = (
+                            supplier_count.get(w["supplier_name"], 0) + 1
+                        )
             except (json.JSONDecodeError, TypeError):
                 pass
         competitor_count = len(supplier_count)
@@ -234,7 +232,9 @@ async def _compute_category_competition(db: DbSession, result: MarketingStats) -
             try:
                 for w in json.loads(wb_str):
                     if w.get("is_winning") == 1 and w.get("supplier_name"):
-                        supplier_count[w["supplier_name"]] = supplier_count.get(w["supplier_name"], 0) + 1
+                        supplier_count[w["supplier_name"]] = (
+                            supplier_count.get(w["supplier_name"], 0) + 1
+                        )
             except (json.JSONDecodeError, TypeError):
                 pass
         top5 = sorted(supplier_count.items(), key=lambda x: -x[1])[:5]

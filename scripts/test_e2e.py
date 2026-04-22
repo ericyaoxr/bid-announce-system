@@ -1,7 +1,9 @@
-import urllib.request
 import json
+import urllib.parse
+import urllib.request
 
 BASE = "http://localhost:8000"
+
 
 def get(url, headers=None):
     req = urllib.request.Request(url)
@@ -10,18 +12,37 @@ def get(url, headers=None):
             req.add_header(k, v)
     try:
         r = urllib.request.urlopen(req)
-        return r.status, json.loads(r.read()) if r.headers.get('Content-Type', '').startswith('application/json') else r.read().decode(), r.headers
+        return (
+            r.status,
+            json.loads(r.read())
+            if r.headers.get("Content-Type", "").startswith("application/json")
+            else r.read().decode(),
+            r.headers,
+        )
     except urllib.error.HTTPError as e:
         return e.code, e.read().decode() if e.fp else "", e.headers
 
+
 def post(url, data=None, headers=None):
     body = json.dumps(data).encode() if data is not None else None
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json", **(headers or {})}, method='POST')
+    req = urllib.request.Request(
+        url,
+        data=body,
+        headers={"Content-Type": "application/json", **(headers or {})},
+        method="POST",
+    )
     try:
         r = urllib.request.urlopen(req)
-        return r.status, json.loads(r.read()) if r.headers.get('Content-Type', '').startswith('application/json') else r.read().decode(), r.headers
+        return (
+            r.status,
+            json.loads(r.read())
+            if r.headers.get("Content-Type", "").startswith("application/json")
+            else r.read().decode(),
+            r.headers,
+        )
     except urllib.error.HTTPError as e:
         return e.code, e.read().decode() if e.fp else "", e.headers
+
 
 print("=" * 60)
 print("  端到端全面自测")
@@ -62,15 +83,15 @@ status, data, _ = get(f"{BASE}/api/announcements?page=1&size=5", auth_headers)
 if status == 200:
     print(f"  ✓ 总数: {data.get('total')}, 当前页: {data.get('page')}, 每页: {data.get('size')}")
     print(f"  ✓ 返回项数: {len(data.get('items', []))}")
-    if data.get('items'):
-        item = data['items'][0]
+    if data.get("items"):
+        item = data["items"][0]
         print(f"  ✓ 示例标题: {item.get('title', '')[:50]}...")
 else:
     print(f"  ✗ 失败: {status} {data}")
 
 # 5. 公告搜索 API
 print("\n[5] 公告搜索 API")
-import urllib.parse
+
 keyword = urllib.parse.quote("工程")
 status, data, _ = get(f"{BASE}/api/announcements?keyword={keyword}&page=1&size=3", auth_headers)
 if status == 200:
@@ -81,8 +102,8 @@ else:
 # 6. 公告详情 API
 print("\n[6] 公告详情 API")
 status, data, _ = get(f"{BASE}/api/announcements?page=1&size=1", auth_headers)
-if status == 200 and data.get('items'):
-    ann_id = data['items'][0]['id']
+if status == 200 and data.get("items"):
+    ann_id = data["items"][0]["id"]
     status2, data2, _ = get(f"{BASE}/api/announcements/{ann_id}", auth_headers)
     if status2 == 200:
         print(f"  ✓ 详情标题: {data2.get('title', '')[:50]}...")
@@ -90,7 +111,7 @@ if status == 200 and data.get('items'):
     else:
         print(f"  ✗ 详情失败: {status2}")
 else:
-    print(f"  ⊘ 跳过（无公告数据）")
+    print("  ⊘ 跳过（无公告数据）")
 
 # 7. 采集状态 API
 print("\n[7] 采集管理 API (/api/crawler/status)")
@@ -124,7 +145,9 @@ pages = ["/", "/login", "/announcements", "/winners", "/crawler", "/export", "/s
 for page in pages:
     status, body, _ = get(f"{BASE}{page}")
     has_root = 'id="root"' in body if isinstance(body, str) else False
-    print(f"  {'✓' if status == 200 and has_root else '✗'} {page}: {status} {'有 root div' if has_root else '无 root div'}")
+    print(
+        f"  {'✓' if status == 200 and has_root else '✗'} {page}: {status} {'有 root div' if has_root else '无 root div'}"
+    )
 
 # 11. 静态资源
 print("\n[11] 静态资源")
@@ -132,7 +155,9 @@ status, _, headers = get(f"{BASE}/assets/index-D8zXtGlX.js")
 print(f"  {'✓' if status == 200 else '✗'} JS 文件: {status} {headers.get('Content-Type', '')[:30]}")
 
 status, _, headers = get(f"{BASE}/assets/index-BbR7p8Tp.css")
-print(f"  {'✓' if status == 200 else '✗'} CSS 文件: {status} {headers.get('Content-Type', '')[:30]}")
+print(
+    f"  {'✓' if status == 200 else '✗'} CSS 文件: {status} {headers.get('Content-Type', '')[:30]}"
+)
 
 status, _, headers = get(f"{BASE}/favicon.svg")
 print(f"  {'✓' if status == 200 else '✗'} Favicon: {status} {headers.get('Content-Type', '')[:30]}")

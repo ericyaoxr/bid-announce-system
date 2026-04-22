@@ -1,9 +1,9 @@
-import json
 import smtplib
-import httpx
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from typing import Any
+
+import httpx
 
 from src.utils.logger import get_logger
 
@@ -210,9 +210,7 @@ class NotificationService:
                     )
                 )
             elif ntype == "wecom":
-                self.notifiers.append(
-                    WeComNotifier(webhook_url=notifier_cfg["webhook_url"])
-                )
+                self.notifiers.append(WeComNotifier(webhook_url=notifier_cfg["webhook_url"]))
             elif ntype == "email":
                 self.notifiers.append(
                     EmailNotifier(
@@ -228,7 +226,7 @@ class NotificationService:
 
     async def send(self, title: str, content: str, **kwargs: Any) -> dict[str, bool]:
         results = {}
-        for i, notifier in enumerate(self.notifiers):
+        for _i, notifier in enumerate(self.notifiers):
             ntype = type(notifier).__name__
             try:
                 if isinstance(notifier, EmailNotifier):

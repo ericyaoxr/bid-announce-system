@@ -39,6 +39,7 @@ def _register_job_to_scheduler(task: ScheduledTask) -> None:
     async def crawl_job() -> None:
         import sqlite3
         import threading
+
         from src.api.routes.crawler import _run_crawler_sync
 
         history_id = f"sh_{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}"
@@ -46,7 +47,14 @@ def _register_job_to_scheduler(task: ScheduledTask) -> None:
         try:
             conn.execute(
                 "INSERT INTO schedule_history (id, schedule_id, schedule_name, mode, status, started_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (history_id, job_id, task.name, task.mode, "running", datetime.now(UTC).isoformat()),
+                (
+                    history_id,
+                    job_id,
+                    task.name,
+                    task.mode,
+                    "running",
+                    datetime.now(UTC).isoformat(),
+                ),
             )
             conn.commit()
         finally:
@@ -70,7 +78,17 @@ def _register_job_to_scheduler(task: ScheduledTask) -> None:
             if task_result:
                 conn.execute(
                     "UPDATE schedule_history SET status=?, list_count=?, detail_count=?, total_records=?, with_winner=?, finished_at=?, elapsed_seconds=?, error_message=? WHERE id=?",
-                    (task_result[0], task_result[1], task_result[2], task_result[3], task_result[4], datetime.now(UTC).isoformat(), task_result[5], task_result[6], history_id),
+                    (
+                        task_result[0],
+                        task_result[1],
+                        task_result[2],
+                        task_result[3],
+                        task_result[4],
+                        datetime.now(UTC).isoformat(),
+                        task_result[5],
+                        task_result[6],
+                        history_id,
+                    ),
                 )
                 conn.commit()
         finally:
@@ -102,22 +120,28 @@ async def list_schedules(db: DbSession) -> list[dict]:
         next_run = None
         if aps_job and aps_job.next_run_time:
             next_run = aps_job.next_run_time.strftime("%Y-%m-%d %H:%M:%S")
-        output.append({
-            "id": task.id,
-            "name": task.name,
-            "cron": task.cron,
-            "next_run": next_run,
-            "enabled": task.enabled,
-        })
+        output.append(
+            {
+                "id": task.id,
+                "name": task.name,
+                "cron": task.cron,
+                "next_run": next_run,
+                "enabled": task.enabled,
+            }
+        )
     return output
 
 
 @router.post("")
 async def create_schedule(req: ScheduleCreate, db: DbSession, admin: AdminUser) -> dict:
-    from src.core.scheduler import get_scheduler
 
     job_id = f"crawl_{req.mode}_{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}"
-    mode_label = {"incremental": "增量", "full": "全量", "by_date": "按时间", "detail_only": "仅详情"}.get(req.mode, req.mode)
+    mode_label = {
+        "incremental": "增量",
+        "full": "全量",
+        "by_date": "按时间",
+        "detail_only": "仅详情",
+    }.get(req.mode, req.mode)
     task_name = f"定时{mode_label}采集"
 
     task = ScheduledTask(
@@ -135,7 +159,13 @@ async def create_schedule(req: ScheduleCreate, db: DbSession, admin: AdminUser) 
 
     _register_job_to_scheduler(task)
 
-    return {"id": job_id, "name": task_name, "mode": req.mode, "cron": req.cron, "status": "created"}
+    return {
+        "id": job_id,
+        "name": task_name,
+        "mode": req.mode,
+        "cron": req.cron,
+        "status": "created",
+    }
 
 
 @router.delete("/{job_id}")
