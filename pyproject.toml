@@ -21,6 +21,8 @@ dependencies = [
     "apscheduler>=3.10.0",
     "websockets>=12.0",
     "tenacity>=8.2.0",
+    "orjson>=3.9.0",
+    "parsel>=1.8.0",
 ]
 
 [project.optional-dependencies]
